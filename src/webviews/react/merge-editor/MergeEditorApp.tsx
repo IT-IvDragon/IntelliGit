@@ -121,6 +121,99 @@ function LineNumbers({ count, startLine }: { count: number; startLine: number })
     );
 }
 
+function IconArrowRight(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M5 3l5 5-5 5-.7-.7L8.6 8 4.3 3.7z" />
+        </svg>
+    );
+}
+
+function IconArrowLeft(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M11 3l.7.7L7.4 8l4.3 4.3-.7.7-5-5z" />
+        </svg>
+    );
+}
+
+function IconClose(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path
+                fill="currentColor"
+                d="M4.7 4L8 7.3 11.3 4l.7.7L8.7 8l3.3 3.3-.7.7L8 8.7 4.7 12l-.7-.7L7.3 8 4 4.7z"
+            />
+        </svg>
+    );
+}
+
+function IconSpark(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path
+                fill="currentColor"
+                d="M8 1l1.6 3.4L13 6l-3.4 1.6L8 11 6.4 7.6 3 6l3.4-1.6zM3 10l.8 1.7L5.5 13l-1.7.8L3 15l-.8-1.2L.5 13l1.7-.8zM12.5 10l.9 1.8L15 12.5l-1.6.7L12.5 15l-.8-1.8-1.7-.7 1.7-.7z"
+            />
+        </svg>
+    );
+}
+
+function IconEye(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path
+                fill="currentColor"
+                d="M8 3c3.4 0 6 3 6.7 4-.7 1-3.3 4-6.7 4S2 8 1.3 7C2 6 4.6 3 8 3zm0 1C5.5 4 3.4 6 2.5 7c.9 1 3 3 5.5 3s4.6-2 5.5-3c-.9-1-3-3-5.5-3zm0 1.5A1.5 1.5 0 1 1 8 8.5 1.5 1.5 0 0 1 8 5.5z"
+            />
+        </svg>
+    );
+}
+
+function IconFilter(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M2 3h12L9.5 8v4.2l-3 1V8z" />
+        </svg>
+    );
+}
+
+function HighlightedLine({ line }: { line: string }): React.ReactElement {
+    if (!line) return <>{`\u00A0`}</>;
+    if (line.trimStart().startsWith("//")) {
+        return <span className="tok-comment">{line}</span>;
+    }
+
+    const tokenRegex =
+        /("([^"\\]|\\.)*"|'([^'\\]|\\.)*'|`([^`\\]|\\.)*`)|\b(import|from|const|let|var|class|interface|type|function|return|if|else|for|while|switch|case|break|continue|new|export|default|private|public|protected|readonly|static|async|await)\b|\b(true|false|null|undefined)\b|\b\d+(\.\d+)?\b/g;
+    const nodes: React.ReactNode[] = [];
+    let last = 0;
+    let idx = 0;
+
+    for (const match of line.matchAll(tokenRegex)) {
+        const start = match.index ?? 0;
+        if (start > last) {
+            nodes.push(<span key={`txt-${idx++}`}>{line.slice(last, start)}</span>);
+        }
+        const token = match[0];
+        let className = "tok-default";
+        if (match[1]) className = "tok-string";
+        else if (match[6]) className = "tok-keyword";
+        else if (match[7]) className = "tok-constant";
+        else className = "tok-number";
+        nodes.push(
+            <span key={`tok-${idx++}`} className={className}>
+                {token}
+            </span>,
+        );
+        last = start + token.length;
+    }
+    if (last < line.length) {
+        nodes.push(<span key={`txt-${idx++}`}>{line.slice(last)}</span>);
+    }
+    return <>{nodes}</>;
+}
+
 function CodeBlock({
     lines,
     startLine,
@@ -140,7 +233,7 @@ function CodeBlock({
             <div className="code-lines">
                 {padded.map((line, i) => (
                     <div key={i} className="code-line">
-                        {line || "\u00A0"}
+                        <HighlightedLine line={line} />
                     </div>
                 ))}
             </div>
@@ -189,33 +282,29 @@ function ConflictSection({
 
     const isOurs = resolution === "ours";
     const isTheirs = resolution === "theirs";
-    const isResolved = resolution !== undefined;
 
     return (
-        <div className="segment segment-conflict">
+        <div className={`segment segment-conflict ${resolution ? "resolved" : "unresolved"}`}>
             <div className="hunk-toolbar">
                 <div className="hunk-cell hunk-left">
-                    <span className="hunk-side">Yours</span>
                     <div className="conflict-actions">
                         <button
                             className={`action-btn accept-btn ${isOurs ? "active" : ""}`}
                             onClick={() => onResolve(segment.id, isOurs ? "none" : "ours")}
                             title="Accept yours"
                         >
-                            →
+                            <IconArrowRight />
                         </button>
                         <button
                             className="action-btn discard-btn"
                             onClick={() => onResolve(segment.id, "theirs")}
                             title="Discard yours (accept theirs)"
                         >
-                            ×
+                            <IconClose />
                         </button>
                     </div>
                 </div>
-                <div className={`hunk-cell hunk-middle ${isResolved ? "resolved" : "unresolved"}`}>
-                    {isResolved ? `Resolved (${resolution})` : "Unresolved"}
-                </div>
+                <div className="hunk-cell hunk-middle" />
                 <div className="hunk-cell hunk-right">
                     <div className="conflict-actions">
                         <button
@@ -223,17 +312,16 @@ function ConflictSection({
                             onClick={() => onResolve(segment.id, "ours")}
                             title="Discard theirs (accept yours)"
                         >
-                            ×
+                            <IconClose />
                         </button>
                         <button
                             className={`action-btn accept-btn ${isTheirs ? "active" : ""}`}
                             onClick={() => onResolve(segment.id, isTheirs ? "none" : "theirs")}
                             title="Accept theirs"
                         >
-                            ←
+                            <IconArrowLeft />
                         </button>
                     </div>
-                    <span className="hunk-side">Theirs</span>
                 </div>
             </div>
 
@@ -377,9 +465,24 @@ function App() {
         <div className="merge-editor">
             <div className="merge-toolbar">
                 <div className="toolbar-left">
-                    <button className="toolbar-btn">Apply non-conflicting changes</button>
-                    <button className="toolbar-btn subtle">Do not ignore</button>
-                    <button className="toolbar-btn subtle">Highlight words</button>
+                    <button className="toolbar-btn">
+                        <span className="toolbar-icon">
+                            <IconSpark />
+                        </span>
+                        Apply non-conflicting changes
+                    </button>
+                    <button className="toolbar-btn subtle">
+                        <span className="toolbar-icon">
+                            <IconFilter />
+                        </span>
+                        Do not ignore
+                    </button>
+                    <button className="toolbar-btn subtle">
+                        <span className="toolbar-icon">
+                            <IconEye />
+                        </span>
+                        Highlight words
+                    </button>
                 </div>
                 <div className="toolbar-right">
                     <button
@@ -387,6 +490,9 @@ function App() {
                         onClick={handleAcceptAllYours}
                         title="Accept all yours"
                     >
+                        <span className="toolbar-icon">
+                            <IconArrowRight />
+                        </span>
                         Accept All Yours
                     </button>
                     <button
@@ -394,6 +500,9 @@ function App() {
                         onClick={handleAcceptAllTheirs}
                         title="Accept all theirs"
                     >
+                        <span className="toolbar-icon">
+                            <IconArrowLeft />
+                        </span>
                         Accept All Theirs
                     </button>
                 </div>
@@ -414,22 +523,16 @@ function App() {
 
             <div className="pane-meta-row">
                 <div className="pane-meta">
-                    <span>Changes from {state.data.oursLabel.toLowerCase()}</span>
+                    <span>Changes from {state.data.oursLabel}</span>
                     <span className="show-details">Show Details</span>
                 </div>
                 <div className="pane-meta pane-meta-center">
                     <span>Result</span>
                 </div>
                 <div className="pane-meta pane-meta-right">
-                    <span>Changes from {state.data.theirsLabel.toLowerCase()}</span>
+                    <span>Changes from {state.data.theirsLabel}</span>
                     <span className="show-details">Show Details</span>
                 </div>
-            </div>
-
-            <div className="column-headers">
-                <div className="column-header left">{state.data.oursLabel}</div>
-                <div className="column-header middle">Result</div>
-                <div className="column-header right">{state.data.theirsLabel}</div>
             </div>
 
             <div className="merge-content">
@@ -537,6 +640,14 @@ const STYLES = `
     align-items: center;
     gap: 6px;
 }
+.toolbar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    color: var(--vscode-icon-foreground, currentColor);
+}
 .toolbar-btn {
     height: 20px;
     padding: 0 8px;
@@ -592,7 +703,7 @@ const STYLES = `
 .pane-meta-row {
     display: flex;
     border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    background: color-mix(in srgb, var(--vscode-editorGroupHeader-tabsBackground) 80%, transparent);
+    background: var(--vscode-editorGroupHeader-tabsBackground);
 }
 .pane-meta {
     flex: 1;
@@ -613,35 +724,6 @@ const STYLES = `
 }
 .show-details {
     color: var(--vscode-textLink-foreground, #4ea1ff);
-}
-
-.column-headers {
-    display: flex;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    background: var(--vscode-editorGroupHeader-tabsBackground);
-}
-.column-header {
-    flex: 1;
-    padding: 3px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    color: var(--vscode-descriptionForeground);
-    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-}
-.column-header.left {
-    color: color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d7ba7d) 90%, white);
-}
-.column-header.middle {
-    text-align: center;
-    color: var(--vscode-foreground);
-}
-.column-header.right {
-    text-align: right;
-    color: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #89d185) 90%, white);
-    border-right: none;
 }
 
 .merge-content {
@@ -671,7 +753,7 @@ const STYLES = `
     grid-template-columns: 46px 1fr;
 }
 .line-numbers {
-    background: color-mix(in srgb, var(--vscode-sideBar-background) 45%, transparent);
+    background: var(--vscode-editorGutter-background, var(--vscode-sideBar-background, transparent));
     border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
     color: var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground));
 }
@@ -701,14 +783,14 @@ const STYLES = `
 .segment-conflict {
     display: block;
     margin: 1px 0 2px;
-    border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border, #4c566a) 70%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border, #4c566a) 70%, transparent);
+    border-top: 1px solid var(--vscode-merge-border, var(--vscode-panel-border, transparent));
+    border-bottom: 1px solid var(--vscode-merge-border, var(--vscode-panel-border, transparent));
 }
 .hunk-toolbar {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    background: color-mix(in srgb, var(--vscode-editorGroupHeader-tabsBackground) 82%, transparent);
+    background: var(--vscode-editorGroupHeader-tabsBackground);
 }
 .hunk-cell {
     min-height: 22px;
@@ -721,28 +803,21 @@ const STYLES = `
     border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
 }
 .hunk-left {
-    justify-content: space-between;
+    justify-content: flex-end;
 }
 .hunk-middle {
-    justify-content: center;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.2px;
+    padding: 0;
+    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
 }
-.hunk-middle.unresolved {
-    background: color-mix(in srgb, var(--vscode-diffEditor-removedLineBackground, rgba(158, 53, 57, 0.45)) 80%, transparent);
-    color: var(--vscode-editor-foreground);
+.segment-conflict.unresolved .hunk-middle {
+    background: var(--vscode-diffEditor-removedLineBackground, rgba(116, 46, 53, 0.45));
 }
-.hunk-middle.resolved {
-    background: color-mix(in srgb, var(--vscode-diffEditor-insertedLineBackground, rgba(64, 152, 84, 0.35)) 70%, transparent);
-    color: var(--vscode-editor-foreground);
+.segment-conflict.resolved .hunk-middle {
+    background: var(--vscode-diffEditor-insertedLineBackground, rgba(56, 118, 66, 0.32));
 }
 .hunk-right {
-    justify-content: space-between;
+    justify-content: flex-start;
     border-right: none;
-}
-.hunk-side {
-    font-weight: 600;
 }
 
 .conflict-column {
@@ -766,7 +841,7 @@ const STYLES = `
     justify-content: center;
     font-size: 12px;
     line-height: 1;
-    background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 70%, transparent);
+    background: var(--vscode-button-secondaryBackground);
     color: var(--vscode-foreground);
 }
 .action-btn:hover {
@@ -774,7 +849,7 @@ const STYLES = `
 }
 .accept-btn.active {
     border-color: var(--vscode-focusBorder, #4ea1ff);
-    background: color-mix(in srgb, var(--vscode-button-background) 62%, transparent);
+    background: var(--vscode-button-background);
     color: var(--vscode-button-foreground, #ffffff);
 }
 .discard-btn:hover {
@@ -783,19 +858,19 @@ const STYLES = `
 }
 
 .conflict-ours .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-removedLineBackground, rgba(158, 53, 57, 0.35)) 72%, transparent);
+    background: var(--vscode-merge-currentContentBackground, var(--vscode-diffEditor-removedLineBackground, rgba(116, 46, 53, 0.35)));
     color: var(--vscode-editor-foreground);
 }
 .conflict-theirs .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-insertedLineBackground, rgba(57, 127, 78, 0.25)) 58%, transparent);
+    background: var(--vscode-merge-incomingContentBackground, var(--vscode-diffEditor-insertedLineBackground, rgba(56, 118, 66, 0.28)));
     color: var(--vscode-editor-foreground);
 }
 .conflict-result.unresolved .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-removedLineBackground, rgba(111, 40, 44, 0.55)) 82%, transparent);
+    background: var(--vscode-diffEditor-removedLineBackground, rgba(111, 40, 44, 0.55));
     color: var(--vscode-editor-foreground);
 }
 .conflict-result.resolved .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-insertedLineBackground, rgba(57, 127, 78, 0.28)) 78%, transparent);
+    background: var(--vscode-diffEditor-insertedLineBackground, rgba(57, 127, 78, 0.28));
     color: var(--vscode-editor-foreground);
 }
 
@@ -805,10 +880,10 @@ const STYLES = `
 }
 
 .column-left.accepted .conflict-ours .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-removedLineBackground, rgba(158, 53, 57, 0.45)) 95%, transparent);
+    background: var(--vscode-merge-currentContentBackground, var(--vscode-diffEditor-removedLineBackground, rgba(116, 46, 53, 0.5)));
 }
 .column-right.accepted .conflict-theirs .code-line {
-    background: color-mix(in srgb, var(--vscode-diffEditor-insertedLineBackground, rgba(57, 127, 78, 0.36)) 95%, transparent);
+    background: var(--vscode-merge-incomingContentBackground, var(--vscode-diffEditor-insertedLineBackground, rgba(56, 118, 66, 0.36)));
 }
 
 .merge-footer {
@@ -817,7 +892,7 @@ const STYLES = `
     justify-content: space-between;
     min-height: 32px;
     padding: 4px 10px;
-    background: color-mix(in srgb, var(--vscode-editorGroupHeader-tabsBackground) 78%, transparent);
+    background: var(--vscode-editorGroupHeader-tabsBackground);
     border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
     flex-shrink: 0;
 }
@@ -846,11 +921,28 @@ const STYLES = `
     cursor: not-allowed;
 }
 .footer-btn.secondary {
-    background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 70%, transparent);
+    background: var(--vscode-button-secondaryBackground);
     color: var(--vscode-button-secondaryForeground);
 }
 .footer-btn.secondary:hover {
     background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.tok-comment {
+    color: var(--vscode-editorLineNumber-foreground, #6e7681);
+    font-style: italic;
+}
+.tok-keyword {
+    color: var(--vscode-symbolIcon-keywordForeground, #c586c0);
+}
+.tok-string {
+    color: var(--vscode-symbolIcon-stringForeground, #ce9178);
+}
+.tok-number {
+    color: var(--vscode-symbolIcon-numberForeground, #b5cea8);
+}
+.tok-constant {
+    color: var(--vscode-symbolIcon-constantForeground, #4fc1ff);
 }
 `;
 

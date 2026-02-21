@@ -89,6 +89,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             gitOps,
             workspaceFolder.uri,
             filePath,
+            {
+                oursSourceLabel: lastMergeContext.targetBranch ?? "current branch",
+                theirsSourceLabel: lastMergeContext.sourceBranch ?? "incoming branch",
+            },
             async () => {
                 await refreshConflictUi();
             },

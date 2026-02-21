@@ -20,6 +20,8 @@ export class MergeEditorPanel {
         private readonly gitOps: GitOps,
         private readonly workspaceRoot: vscode.Uri,
         private readonly filePath: string,
+        private readonly oursSourceLabel: string,
+        private readonly theirsSourceLabel: string,
         private readonly onResolved: () => void,
     ) {
         this.panel = panel;
@@ -51,6 +53,7 @@ export class MergeEditorPanel {
         gitOps: GitOps,
         workspaceRoot: vscode.Uri,
         filePath: string,
+        labels: { oursSourceLabel?: string; theirsSourceLabel?: string } | undefined,
         onResolved: () => void,
     ): void {
         const existing = MergeEditorPanel.panels.get(filePath);
@@ -72,6 +75,8 @@ export class MergeEditorPanel {
             gitOps,
             workspaceRoot,
             filePath,
+            labels?.oursSourceLabel?.trim() || "current branch",
+            labels?.theirsSourceLabel?.trim() || "incoming branch",
             onResolved,
         );
         MergeEditorPanel.panels.set(filePath, instance);
@@ -124,8 +129,8 @@ export class MergeEditorPanel {
             const data: MergeEditorData = {
                 filePath: this.filePath,
                 segments,
-                oursLabel: "Yours (Local)",
-                theirsLabel: "Theirs (Incoming)",
+                oursLabel: this.oursSourceLabel,
+                theirsLabel: this.theirsSourceLabel,
             };
 
             this.panel.webview.postMessage({ type: "setConflictData", data });
