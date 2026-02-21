@@ -11,7 +11,9 @@ export type OutboundMessage =
     | { type: "acceptYours" }
     | { type: "acceptTheirs" };
 
-export type InboundMessage = { type: "setConflictData"; data: MergeEditorData };
+export type InboundMessage =
+    | { type: "setConflictData"; data: MergeEditorData }
+    | { type: "loadError"; message: string };
 
 /** Resolution choice for a single conflict hunk. */
 export type HunkResolution = "ours" | "theirs" | "both" | "none";

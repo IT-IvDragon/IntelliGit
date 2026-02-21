@@ -657,10 +657,19 @@ export class GitOps {
     async getConflictFileVersions(
         filePath: string,
     ): Promise<{ base: string; ours: string; theirs: string }> {
+        const withTimeout = <T>(promise: Promise<T>, label: string): Promise<T> => {
+            return Promise.race([
+                promise,
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error(`Timed out reading ${label} for ${filePath}`)), 10_000),
+                ),
+            ]);
+        };
+
         const [base, ours, theirs] = await Promise.all([
-            this.executor.run(["show", `:1:${filePath}`]).catch(() => ""),
-            this.executor.run(["show", `:2:${filePath}`]),
-            this.executor.run(["show", `:3:${filePath}`]),
+            withTimeout(this.executor.run(["show", `:1:${filePath}`]), "base").catch(() => ""),
+            withTimeout(this.executor.run(["show", `:2:${filePath}`]), "ours"),
+            withTimeout(this.executor.run(["show", `:3:${filePath}`]), "theirs"),
         ]);
         return { base, ours, theirs };
     }

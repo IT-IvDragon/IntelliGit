@@ -24,17 +24,21 @@ function getVsCodeApi() {
 
 interface State {
     data: MergeEditorData | null;
+    error: string | null;
     resolutions: Record<number, HunkResolution>;
 }
 
 type Action =
     | { type: "SET_DATA"; data: MergeEditorData }
+    | { type: "SET_ERROR"; message: string }
     | { type: "RESOLVE_HUNK"; id: number; resolution: HunkResolution };
 
 function reducer(state: State, action: Action): State {
     switch (action.type) {
         case "SET_DATA":
-            return { ...state, data: action.data, resolutions: {} };
+            return { ...state, data: action.data, error: null, resolutions: {} };
+        case "SET_ERROR":
+            return { ...state, error: action.message };
         case "RESOLVE_HUNK":
             return {
                 ...state,
@@ -233,7 +237,7 @@ function ConflictSection({
 }
 
 function App() {
-    const [state, dispatch] = useReducer(reducer, { data: null, resolutions: {} });
+    const [state, dispatch] = useReducer(reducer, { data: null, error: null, resolutions: {} });
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -241,6 +245,8 @@ function App() {
         const handler = (event: MessageEvent<InboundMessage>) => {
             if (event.data.type === "setConflictData") {
                 dispatch({ type: "SET_DATA", data: event.data.data });
+            } else if (event.data.type === "loadError") {
+                dispatch({ type: "SET_ERROR", message: event.data.message });
             }
         };
         window.addEventListener("message", handler);
@@ -283,6 +289,20 @@ function App() {
     const handleBulkAcceptTheirs = useCallback(() => {
         getVsCodeApi().postMessage({ type: "acceptTheirs" });
     }, []);
+
+    const handleRetry = useCallback(() => {
+        dispatch({ type: "SET_ERROR", message: "" });
+        getVsCodeApi().postMessage({ type: "ready" });
+    }, []);
+
+    if (state.error) {
+        return (
+            <div className="loading">
+                <div className="error-message">Failed to load conflict data: {state.error}</div>
+                <button className="retry-btn" onClick={handleRetry}>Retry</button>
+            </div>
+        );
+    }
 
     if (!state.data) {
         return <div className="loading">Loading conflict data...</div>;
@@ -382,10 +402,29 @@ const STYLES = `
 
 .loading {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 12px;
     height: 100vh;
     color: var(--vscode-descriptionForeground);
+}
+.error-message {
+    color: var(--vscode-errorForeground, #f48771);
+    max-width: 500px;
+    text-align: center;
+}
+.retry-btn {
+    padding: 4px 14px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.retry-btn:hover {
+    background: var(--vscode-button-hoverBackground);
 }
 
 /* Header */

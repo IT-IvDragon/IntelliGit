@@ -113,17 +113,22 @@ export class MergeEditorPanel {
     }
 
     private async loadConflictData(): Promise<void> {
-        const versions = await this.gitOps.getConflictFileVersions(this.filePath);
-        const segments = parseConflictVersions(versions.base, versions.ours, versions.theirs);
+        try {
+            const versions = await this.gitOps.getConflictFileVersions(this.filePath);
+            const segments = parseConflictVersions(versions.base, versions.ours, versions.theirs);
 
-        const data: MergeEditorData = {
-            filePath: this.filePath,
-            segments,
-            oursLabel: "Yours (Local)",
-            theirsLabel: "Theirs (Incoming)",
-        };
+            const data: MergeEditorData = {
+                filePath: this.filePath,
+                segments,
+                oursLabel: "Yours (Local)",
+                theirsLabel: "Theirs (Incoming)",
+            };
 
-        this.panel.webview.postMessage({ type: "setConflictData", data });
+            this.panel.webview.postMessage({ type: "setConflictData", data });
+        } catch (err) {
+            const message = getErrorMessage(err);
+            this.panel.webview.postMessage({ type: "loadError", message });
+        }
     }
 
     private getHtml(webview: vscode.Webview): string {
