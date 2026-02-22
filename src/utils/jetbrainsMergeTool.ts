@@ -342,21 +342,23 @@ async function detectWindowsJetBrainsExecutableCandidates(): Promise<DetectedJet
         if (!dir) return;
         const trimmed = dir.trim();
         if (!trimmed) return;
+        if (!path.isAbsolute(trimmed)) return;
         roots.push({ dir: trimmed, maxDepth, stopAfterDirs });
     };
+    const programFiles = process.env.ProgramFiles;
+    const programFilesX86 = process.env["ProgramFiles(x86)"];
+    const localAppData = process.env.LOCALAPPDATA;
+    const appData = process.env.APPDATA;
+    const userProfile = process.env.USERPROFILE;
 
-    addRoot(path.join(process.env.ProgramFiles || "", "JetBrains"), 3, 1000);
-    addRoot(path.join(process.env["ProgramFiles(x86)"] || "", "JetBrains"), 3, 1000);
-    addRoot(path.join(process.env.LOCALAPPDATA || "", "Programs", "JetBrains"), 3, 1000);
-    addRoot(path.join(process.env.LOCALAPPDATA || "", "JetBrains", "Toolbox", "apps"), 6, 5000);
-    addRoot(path.join(process.env.APPDATA || "", "JetBrains", "Toolbox", "apps"), 6, 5000);
-    addRoot(
-        process.env.USERPROFILE
-            ? path.join(process.env.USERPROFILE, "AppData", "Local", "JetBrains", "Toolbox", "apps")
-            : "",
-        6,
-        5000,
-    );
+    if (programFiles) addRoot(path.join(programFiles, "JetBrains"), 3, 1000);
+    if (programFilesX86) addRoot(path.join(programFilesX86, "JetBrains"), 3, 1000);
+    if (localAppData) addRoot(path.join(localAppData, "Programs", "JetBrains"), 3, 1000);
+    if (localAppData) addRoot(path.join(localAppData, "JetBrains", "Toolbox", "apps"), 6, 5000);
+    if (appData) addRoot(path.join(appData, "JetBrains", "Toolbox", "apps"), 6, 5000);
+    if (userProfile) {
+        addRoot(path.join(userProfile, "AppData", "Local", "JetBrains", "Toolbox", "apps"), 6, 5000);
+    }
 
     const all = (
         await Promise.all(
@@ -428,7 +430,7 @@ function buildTempFileNames(relativeFilePath: string): {
 }
 
 export function containsConflictMarkers(text: string): boolean {
-    return /^(<{7}|={7}|>{7})/m.test(text);
+    return /^<<<<<<<[^\r\n]*\r?\n[\s\S]*?^=======\r?$[\s\S]*?^>>>>>>>[^\r\n]*$/m.test(text);
 }
 
 export async function launchJetBrainsMergeTool(
@@ -478,6 +480,13 @@ export async function launchJetBrainsMergeTool(
                         ),
                     );
                     return;
+                }
+                if (exitCode !== 0 && exitCode !== null && !stderr.trim()) {
+                    console.warn(
+                        `[IntelliGit] JetBrains merge tool exited with code ${exitCode}${
+                            signal ? ` (signal: ${signal})` : ""
+                        } without stderr output.`,
+                    );
                 }
                 resolve({ exitCode, signal });
             });

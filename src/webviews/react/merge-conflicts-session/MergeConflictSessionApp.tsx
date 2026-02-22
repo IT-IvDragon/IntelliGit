@@ -99,8 +99,19 @@ function App() {
             <tr
                 key={file.path}
                 className={selected ? "row selected" : "row"}
+                tabIndex={0}
+                aria-selected={selected}
                 onClick={() => setSelectedPath(file.path)}
                 onDoubleClick={() => openMerge(file.path)}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedPath(file.path);
+                    }
+                    if (event.key === "Enter") {
+                        openMerge(file.path);
+                    }
+                }}
             >
                 <td className="name-cell" title={file.path}>
                     <span className="file-name">{fileName(file.path)}</span>

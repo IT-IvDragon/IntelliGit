@@ -97,7 +97,13 @@ export class MergeEditorPanel {
             }
 
             case "applyResolution": {
-                const content = msg.content as string;
+                if (typeof msg.content !== "string") {
+                    vscode.window.showErrorMessage(
+                        `Invalid merge resolution content for ${this.filePath}.`,
+                    );
+                    return;
+                }
+                const content = msg.content;
                 const fileUri = vscode.Uri.joinPath(this.workspaceRoot, this.filePath);
                 await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, "utf8"));
                 await this.gitOps.stageFile(this.filePath);
@@ -147,10 +153,10 @@ export class MergeEditorPanel {
                 diffOptions: this.diffOptions,
             };
 
-            this.panel.webview.postMessage({ type: "setConflictData", data });
+            await this.panel.webview.postMessage({ type: "setConflictData", data });
         } catch (err) {
             const message = getErrorMessage(err);
-            this.panel.webview.postMessage({ type: "loadError", message });
+            await this.panel.webview.postMessage({ type: "loadError", message });
         }
     }
 

@@ -56,7 +56,10 @@ export function parseConflictVersions(
 
 function splitLines(text: string): string[] {
     if (text === "") return [];
-    return text.split("\n");
+    // Drop exactly one trailing newline to avoid creating a synthetic empty
+    // "last line" entry when the file ends with a newline terminator.
+    const normalized = text.endsWith("\n") ? text.slice(0, -1) : text;
+    return normalized === "" ? [] : normalized.split("\n");
 }
 
 // --- Simple LCS-based diff ---
@@ -106,7 +109,7 @@ function computeLCS(a: string[], b: string[]): Array<[number, number]> {
 
     // For very large files, fall back to a simpler approach
     if (m * n > 10_000_000) {
-        return greedyLCS(a, b);
+        return greedyMonotonicLineMatch(a, b);
     }
 
     const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
@@ -133,7 +136,9 @@ function computeLCS(a: string[], b: string[]): Array<[number, number]> {
     return result;
 }
 
-function greedyLCS(a: string[], b: string[]): Array<[number, number]> {
+// This is a fast greedy matcher, not a true LCS. It preserves increasing
+// order and returns a useful approximation for very large inputs.
+function greedyMonotonicLineMatch(a: string[], b: string[]): Array<[number, number]> {
     const bIndex = new Map<string, number[]>();
     for (let j = 0; j < b.length; j++) {
         const list = bIndex.get(b[j]);
@@ -204,18 +209,41 @@ function buildSegments(
             continue;
         }
 
-        // At least one side has an edit starting here
-        const oe = oursEdit ?? { baseStart: bi, baseEnd: bi, modStart: 0, modEnd: 0 };
-        const te = theirsEdit ?? { baseStart: bi, baseEnd: bi, modStart: 0, modEnd: 0 };
+        // Coalesce overlapping edits across both sides so we do not skip a later
+        // edit whose baseStart falls inside the range already expanded by the
+        // opposite side.
+        let endBase = Math.max(oursEdit?.baseEnd ?? bi, theirsEdit?.baseEnd ?? bi);
+        let overlappingOurs = collectOverlappingEdits(oursMap, bi, endBase);
+        let overlappingTheirs = collectOverlappingEdits(theirsMap, bi, endBase);
+        while (true) {
+            const nextEndBase = Math.max(
+                endBase,
+                ...overlappingOurs.map((edit) => edit.baseEnd),
+                ...overlappingTheirs.map((edit) => edit.baseEnd),
+            );
+            if (nextEndBase === endBase) break;
+            endBase = nextEndBase;
+            overlappingOurs = collectOverlappingEdits(oursMap, bi, endBase);
+            overlappingTheirs = collectOverlappingEdits(theirsMap, bi, endBase);
+        }
 
-        const endBase = Math.max(oe.baseEnd, te.baseEnd);
+        const hasOursEdit = overlappingOurs.length > 0;
+        const hasTheirsEdit = overlappingTheirs.length > 0;
 
-        const oLines = oursEdit
-            ? oursLines.slice(oe.modStart, oe.modEnd)
-            : baseLines.slice(bi, endBase);
-        const tLines = theirsEdit
-            ? theirsLines.slice(te.modStart, te.modEnd)
-            : baseLines.slice(bi, endBase);
+        const oLines = buildSideLinesForBaseSpan(
+            baseLines,
+            oursLines,
+            bi,
+            endBase,
+            overlappingOurs,
+        );
+        const tLines = buildSideLinesForBaseSpan(
+            baseLines,
+            theirsLines,
+            bi,
+            endBase,
+            overlappingTheirs,
+        );
 
         // If both sides made the same change, it's not a conflict
         if (arraysEqual(oLines, tLines, options)) {
@@ -224,7 +252,11 @@ function buildSegments(
             }
         } else {
             const changeKind: ConflictChangeKind =
-                oursEdit && theirsEdit ? "conflict" : oursEdit ? "ours-only" : "theirs-only";
+                hasOursEdit && hasTheirsEdit
+                    ? "conflict"
+                    : hasOursEdit
+                      ? "ours-only"
+                      : "theirs-only";
             segments.push({
                 type: "conflict",
                 id: conflictId++,
@@ -238,9 +270,13 @@ function buildSegments(
         if (endBase === cursor) {
             // Pure insertion hunks do not consume base lines. Mark this position as
             // processed so the loop can continue with the same base cursor.
-            oursMap.delete(cursor);
-            theirsMap.delete(cursor);
+            for (const edit of overlappingOurs) oursMap.delete(edit.baseStart);
+            for (const edit of overlappingTheirs) theirsMap.delete(edit.baseStart);
+            if (overlappingOurs.length === 0) oursMap.delete(cursor);
+            if (overlappingTheirs.length === 0) theirsMap.delete(cursor);
         } else {
+            for (const edit of overlappingOurs) oursMap.delete(edit.baseStart);
+            for (const edit of overlappingTheirs) theirsMap.delete(edit.baseStart);
             bi = endBase;
         }
     }
@@ -256,6 +292,61 @@ function buildBaseEditMap(baseLen: number, edits: EditRange[]): Map<number, Edit
         map.set(edit.baseStart, edit);
     }
     return map;
+}
+
+function editTouchesSpan(edit: EditRange, spanStart: number, spanEnd: number): boolean {
+    if (edit.baseStart === edit.baseEnd) {
+        if (spanEnd === spanStart) return edit.baseStart === spanStart;
+        return edit.baseStart >= spanStart && edit.baseStart < spanEnd;
+    }
+    if (spanEnd === spanStart) return edit.baseStart === spanStart;
+    return edit.baseStart < spanEnd && edit.baseEnd > spanStart;
+}
+
+function collectOverlappingEdits(
+    editMap: Map<number, EditRange>,
+    spanStart: number,
+    spanEnd: number,
+): EditRange[] {
+    const edits: EditRange[] = [];
+    for (const edit of editMap.values()) {
+        if (editTouchesSpan(edit, spanStart, spanEnd)) {
+            edits.push(edit);
+        }
+    }
+    edits.sort((a, b) => (a.baseStart - b.baseStart) || (a.modStart - b.modStart));
+    return edits;
+}
+
+function buildSideLinesForBaseSpan(
+    baseLines: string[],
+    modifiedLines: string[],
+    spanStart: number,
+    spanEnd: number,
+    edits: EditRange[],
+): string[] {
+    if (edits.length === 0) {
+        return baseLines.slice(spanStart, spanEnd);
+    }
+
+    const lines: string[] = [];
+    let baseCursor = spanStart;
+
+    for (const edit of edits) {
+        if (edit.baseStart > baseCursor) {
+            lines.push(...baseLines.slice(baseCursor, Math.min(edit.baseStart, spanEnd)));
+        }
+        lines.push(...modifiedLines.slice(edit.modStart, edit.modEnd));
+        if (edit.baseEnd > baseCursor) {
+            baseCursor = edit.baseEnd;
+        }
+    }
+
+    if (baseCursor < spanEnd) {
+        lines.push(...baseLines.slice(baseCursor, spanEnd));
+    }
+
+    return lines;
 }
 
 function arraysEqual(a: string[], b: string[], options: MergeDiffOptions): boolean {

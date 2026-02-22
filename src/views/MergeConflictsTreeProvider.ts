@@ -37,7 +37,13 @@ export class MergeConflictsTreeProvider implements vscode.TreeDataProvider<Merge
     ) {}
 
     async refresh(): Promise<number> {
-        this.conflicts = await this.gitOps.getConflictedFiles();
+        try {
+            this.conflicts = await this.gitOps.getConflictedFiles();
+        } catch {
+            this.conflicts = [];
+            this._onDidChangeTreeData.fire();
+            return 0;
+        }
         this._onDidChangeTreeData.fire();
         return this.conflicts.length;
     }

@@ -70,6 +70,23 @@ async function watch() {
     });
     await mergeEditorCtx.watch();
     console.log("Watching webview: mergeeditor");
+
+    const mergeConflictSessionCtx = await esbuild.context({
+        entryPoints: [
+            path.resolve(
+                __dirname,
+                "../src/webviews/react/merge-conflicts-session/MergeConflictSessionApp.tsx",
+            ),
+        ],
+        bundle: true,
+        outfile: path.resolve(__dirname, "../dist/webview-mergeconflictsession.js"),
+        format: "esm",
+        platform: "browser",
+        target: "es2022",
+        sourcemap: true,
+    });
+    await mergeConflictSessionCtx.watch();
+    console.log("Watching webview: mergeconflictsession");
 }
 
 watch().catch((err) => {

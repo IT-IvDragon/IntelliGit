@@ -112,4 +112,33 @@ describe("merge conflict parser", () => {
             ["function x() {", "return 1;", "}"],
         );
     });
+
+    it("does not create a synthetic empty line for trailing newlines", () => {
+        const text = "a\nb\n";
+        const segments = parseConflictVersions(text, text, text);
+
+        expect(segments).toEqual([
+            {
+                type: "common",
+                lines: ["a", "b"],
+            },
+        ]);
+    });
+
+    it("coalesces overlapping cross-side edits so later edits are not skipped", () => {
+        const base = "a\nb\nc\nd\ne";
+        const ours = "a\nB\nC\nD\ne";
+        const theirs = "a\nb\nX\nd\ne";
+
+        const segments = parseConflictVersions(base, ours, theirs);
+        const conflict = segments.find((segment) => segment.type === "conflict");
+        expect(conflict).toBeDefined();
+        expect(conflict).toMatchObject({
+            type: "conflict",
+            changeKind: "conflict",
+            baseLines: ["b", "c", "d"],
+            oursLines: ["B", "C", "D"],
+            theirsLines: ["b", "X", "d"],
+        });
+    });
 });

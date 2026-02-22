@@ -689,9 +689,22 @@ export class GitOps {
 
     async getFileContentAtRef(filePath: string, ref: string): Promise<string> {
         const trimmedRef = ref.trim();
+        const trimmedFilePath = filePath.trim();
         if (!trimmedRef) throw new Error("Git ref is empty.");
-        if (!filePath.trim()) throw new Error("File path is empty.");
-        return this.executor.run(["show", `${trimmedRef}:${filePath}`]);
+        if (!trimmedFilePath) throw new Error("File path is empty.");
+        if (trimmedRef.startsWith("-")) {
+            throw new Error("Git ref must not start with '-'.");
+        }
+        if (trimmedFilePath.startsWith("-")) {
+            throw new Error("File path must not start with '-'.");
+        }
+        if (/[\0\r\n]/.test(trimmedRef)) {
+            throw new Error("Git ref contains invalid control characters.");
+        }
+        if (/[\0\r\n]/.test(trimmedFilePath)) {
+            throw new Error("File path contains invalid control characters.");
+        }
+        return this.executor.run(["show", `${trimmedRef}:${trimmedFilePath}`]);
     }
 
     async getConflictedFiles(): Promise<string[]> {
@@ -751,8 +764,8 @@ export class GitOps {
 
         const [base, ours, theirs] = await Promise.all([
             withTimeout(this.executor.run(["show", `:1:${filePath}`]), "base").catch(() => ""),
-            withTimeout(this.executor.run(["show", `:2:${filePath}`]), "ours"),
-            withTimeout(this.executor.run(["show", `:3:${filePath}`]), "theirs"),
+            withTimeout(this.executor.run(["show", `:2:${filePath}`]), "ours").catch(() => ""),
+            withTimeout(this.executor.run(["show", `:3:${filePath}`]), "theirs").catch(() => ""),
         ]);
         return { base, ours, theirs };
     }

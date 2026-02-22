@@ -213,6 +213,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     };
 
+    const sleep = (ms: number): Promise<void> =>
+        new Promise((resolve) => {
+            setTimeout(resolve, ms);
+        });
+
+    const readMergedFileWithRetry = async (
+        outputFileFsPath: string,
+        beforeMergeText: string | null,
+    ): Promise<string> => {
+        let lastReadError: unknown;
+        const delaysMs = [0, 80, 160, 320, 500];
+
+        for (let attempt = 0; attempt < delaysMs.length; attempt++) {
+            if (delaysMs[attempt] > 0) {
+                await sleep(delaysMs[attempt]);
+            }
+
+            try {
+                const text = await fs.promises.readFile(outputFileFsPath, "utf8");
+                const unchanged = beforeMergeText !== null && text === beforeMergeText;
+                const hasConflictBlock = containsConflictMarkers(text);
+                if ((unchanged || hasConflictBlock) && attempt < delaysMs.length - 1) {
+                    continue;
+                }
+                return text;
+            } catch (readErr) {
+                lastReadError = readErr;
+                if (attempt === delaysMs.length - 1) throw readErr;
+            }
+        }
+
+        throw (lastReadError instanceof Error
+            ? lastReadError
+            : new Error("Failed to read merged file after external merge tool closed."));
+    };
+
     const openJetBrainsMergeToolForFile = async (filePath: string): Promise<boolean> => {
         let jetBrainsPath = getJetBrainsMergeToolPath();
         if (!jetBrainsPath) {
@@ -234,6 +270,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try {
             const versions = await gitOps.getConflictFileVersions(filePath);
             const outputFileFsPath = path.join(repoRoot, filePath);
+            const beforeMergeText = await fs.promises.readFile(outputFileFsPath, "utf8").catch(() => null);
 
             await runWithNotificationProgress(
                 `Opening JetBrains merge tool for ${filePath}...`,
@@ -251,7 +288,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             );
 
             try {
-                const mergedText = await fs.promises.readFile(outputFileFsPath, "utf8");
+                const mergedText = await readMergedFileWithRetry(outputFileFsPath, beforeMergeText);
                 if (!containsConflictMarkers(mergedText)) {
                     await gitOps.stageFile(filePath);
                     vscode.window.showInformationMessage(`Merged and staged: ${filePath}`);
@@ -316,6 +353,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return activeUri?.scheme === "file" ? activeUri : null;
     };
 
+    const closeTemporaryDiffSourceTab = async (uri: vscode.Uri): Promise<void> => {
+        const matchingTab = vscode.window.tabGroups.all
+            .flatMap((group) => group.tabs)
+            .find((tab) => {
+                const input = tab.input;
+                return input instanceof vscode.TabInputText && input.uri.toString() === uri.toString();
+            });
+        if (!matchingTab) return;
+        try {
+            await vscode.window.tabGroups.close(matchingTab, true);
+        } catch {
+            // Best-effort cleanup only; diff view is already open.
+        }
+    };
+
     const openDiffAgainstGitRef = async (
         fileUri: vscode.Uri,
         repoRelativeFilePath: string,
@@ -333,6 +385,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         const title = `${repoRelativeFilePath} (${sourceLabel}: ${trimmedRef}) <-> Working Tree`;
         await vscode.commands.executeCommand("vscode.diff", leftDoc.uri, fileUri, title);
+        await closeTemporaryDiffSourceTab(leftDoc.uri);
     };
 
     const compareEditorFileWithBranch = async (ctx?: unknown): Promise<void> => {
@@ -1040,13 +1093,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }),
     );
 
-    const resolveConflictPath = (ctx: unknown): string | null => {
-        if (!ctx || typeof ctx !== "object") return null;
-        if ("filePath" in ctx && typeof (ctx as { filePath?: unknown }).filePath === "string") {
-            return (ctx as { filePath: string }).filePath;
-        }
-        return null;
+    const isFilePathContext = (value: unknown): value is { filePath: string } => {
+        return !!value && typeof value === "object" && "filePath" in value && typeof value.filePath === "string";
     };
+
+    const resolveConflictPath = (ctx: unknown): string | null =>
+        isFilePathContext(ctx) ? ctx.filePath : null;
 
     context.subscriptions.push(
         vscode.commands.registerCommand("intelligit.openMergeConflict", async (ctx: unknown) => {

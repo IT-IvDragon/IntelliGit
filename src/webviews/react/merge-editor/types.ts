@@ -26,5 +26,5 @@ export type HunkResolution = "ours" | "theirs" | "both" | "none";
 
 export interface MergeEditorState {
     data: MergeEditorData | null;
-    resolutions: Map<number, HunkResolution>;
+    resolutions: Record<number, HunkResolution>;
 }
