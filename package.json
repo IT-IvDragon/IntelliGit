@@ -185,6 +185,24 @@
                 "icon": "$(git-branch)"
             },
             {
+                "command": "intelligit.commitFileCompareWithLocal",
+                "title": "Compare with Local",
+                "category": "IntelliGit",
+                "icon": "$(diff)"
+            },
+            {
+                "command": "intelligit.commitFileCherryPickChange",
+                "title": "Cherry-pick Selected Change",
+                "category": "IntelliGit",
+                "icon": "$(git-commit)"
+            },
+            {
+                "command": "intelligit.commitFileRevertChange",
+                "title": "Revert Selected Change",
+                "category": "IntelliGit",
+                "icon": "$(discard)"
+            },
+            {
                 "command": "intelligit.fileRefresh",
                 "title": "Refresh",
                 "category": "IntelliGit",
@@ -356,6 +374,22 @@
                     "command": "intelligit.fileRefresh",
                     "when": "webviewId == 'intelligit.commitPanel' && !intelligit.commitPanel.refreshing",
                     "group": "3_info@2"
+                }
+                ,
+                {
+                    "command": "intelligit.commitFileCompareWithLocal",
+                    "when": "(webviewId == 'intelligit.commitGraph' || webviewId == 'intelligit.commitFiles') && webviewSection == 'commitInfoFile'",
+                    "group": "1_compare@1"
+                },
+                {
+                    "command": "intelligit.commitFileCherryPickChange",
+                    "when": "(webviewId == 'intelligit.commitGraph' || webviewId == 'intelligit.commitFiles') && webviewSection == 'commitInfoFile'",
+                    "group": "2_apply@1"
+                },
+                {
+                    "command": "intelligit.commitFileRevertChange",
+                    "when": "(webviewId == 'intelligit.commitGraph' || webviewId == 'intelligit.commitFiles') && webviewSection == 'commitInfoFile'",
+                    "group": "2_apply@2"
                 }
             ]
         },

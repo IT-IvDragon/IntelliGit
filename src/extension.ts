@@ -4,6 +4,7 @@
 
 import * as vscode from "vscode";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { GitExecutor } from "./git/executor";
 import { GitOps, UpstreamPushDeclinedError } from "./git/operations";
@@ -351,6 +352,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (ctx instanceof vscode.Uri) return ctx;
         const activeUri = vscode.window.activeTextEditor?.document.uri;
         return activeUri?.scheme === "file" ? activeUri : null;
+    };
+
+    type CommitInfoFileContext = {
+        filePath: string;
+        commitHash: string;
+        commitShortHash?: string;
+    };
+
+    const getCommitInfoFileContext = (value: unknown): CommitInfoFileContext | null => {
+        if (!value || typeof value !== "object") return null;
+        const maybe = value as {
+            filePath?: unknown;
+            commitHash?: unknown;
+            commitShortHash?: unknown;
+        };
+        if (typeof maybe.filePath !== "string" || typeof maybe.commitHash !== "string") return null;
+        const filePath = maybe.filePath.trim();
+        const commitHash = maybe.commitHash.trim();
+        const commitShortHash =
+            typeof maybe.commitShortHash === "string" ? maybe.commitShortHash.trim() : undefined;
+        if (!filePath || !commitHash) return null;
+        return { filePath, commitHash, commitShortHash };
     };
 
     const closeTemporaryDiffSourceTab = async (uri: vscode.Uri): Promise<void> => {
@@ -798,6 +821,128 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const refreshAll = async (): Promise<void> => {
         await vscode.commands.executeCommand("intelligit.refresh");
+    };
+
+    const EMPTY_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+    const buildCommitFilePatch = async (
+        commitHash: string,
+        filePath: string,
+        actionLabel: string,
+    ): Promise<string | null> => {
+        const parents = await getCommitParentHashes(commitHash);
+        if (parents.length > 1) {
+            const mainlineParent = await pickMainlineParent(commitHash, actionLabel);
+            if (mainlineParent.kind === "cancelled") return null;
+            if (mainlineParent.kind === "notMerge") return null;
+            return executor.run([
+                "diff",
+                "--binary",
+                "--full-index",
+                "--no-color",
+                `${commitHash}^${mainlineParent.parentNumber}`,
+                commitHash,
+                "--",
+                filePath,
+            ]);
+        }
+
+        const baseRef = parents.length === 0 ? EMPTY_TREE_HASH : parents[0];
+        return executor.run([
+            "diff",
+            "--binary",
+            "--full-index",
+            "--no-color",
+            baseRef,
+            commitHash,
+            "--",
+            filePath,
+        ]);
+    };
+
+    const applyPatchTextToRepo = async (patchText: string, reverse: boolean): Promise<void> => {
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "intelligit-filepatch-"));
+        const patchFilePath = path.join(tempDir, "selected-change.patch");
+        try {
+            await fs.promises.writeFile(patchFilePath, patchText, "utf8");
+            const args = [
+                "apply",
+                "--index",
+                "--3way",
+                "--whitespace=nowarn",
+                ...(reverse ? ["-R"] : []),
+                patchFilePath,
+            ];
+            await executor.run(args);
+        } finally {
+            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        }
+    };
+
+    const compareCommitInfoFileWithLocal = async (ctx: unknown): Promise<void> => {
+        const fileCtx = getCommitInfoFileContext(ctx);
+        if (!fileCtx) return;
+        try {
+            const fileUri = vscode.Uri.file(path.join(repoRoot, fileCtx.filePath));
+            await openDiffAgainstGitRef(fileUri, fileCtx.filePath, fileCtx.commitHash, "revision");
+        } catch (error) {
+            const message = getErrorMessage(error);
+            vscode.window.showErrorMessage(`Compare with local failed: ${message}`);
+        }
+    };
+
+    const applySelectedCommitFileChange = async (
+        ctx: unknown,
+        mode: "cherry-pick" | "revert",
+    ): Promise<void> => {
+        const fileCtx = getCommitInfoFileContext(ctx);
+        if (!fileCtx) return;
+
+        const short = fileCtx.commitShortHash || fileCtx.commitHash.slice(0, 8);
+        const actionTitle =
+            mode === "cherry-pick" ? "Cherry-pick Selected Change" : "Revert Selected Change";
+        const confirmLabel = mode === "cherry-pick" ? "Apply Change" : "Revert Change";
+        const confirmMessage =
+            mode === "cherry-pick"
+                ? `Apply the change from ${short} for ${fileCtx.filePath} to your working tree and stage it?`
+                : `Apply the inverse of the change from ${short} for ${fileCtx.filePath} to your working tree and stage it?`;
+        const confirmed = await vscode.window.showWarningMessage(
+            confirmMessage,
+            { modal: true },
+            confirmLabel,
+        );
+        if (confirmed !== confirmLabel) return;
+
+        try {
+            const patchText = await buildCommitFilePatch(fileCtx.commitHash, fileCtx.filePath, actionTitle);
+            if (patchText === null) return; // merge parent selection cancelled
+            if (!patchText.trim()) {
+                vscode.window.showInformationMessage(
+                    `No file-level patch found for ${fileCtx.filePath} in ${short}.`,
+                );
+                return;
+            }
+
+            await runWithNotificationProgress(
+                `${mode === "cherry-pick" ? "Applying" : "Reverting"} selected change for ${fileCtx.filePath}...`,
+                async () => {
+                    await applyPatchTextToRepo(patchText, mode === "revert");
+                },
+            );
+
+            vscode.window.showInformationMessage(
+                `${
+                    mode === "cherry-pick" ? "Applied" : "Reverted"
+                } selected change from ${short} for ${fileCtx.filePath}.`,
+            );
+            await refreshConflictUi();
+        } catch (error) {
+            const message = getErrorMessage(error);
+            vscode.window.showErrorMessage(
+                `${mode === "cherry-pick" ? "Cherry-pick selected change" : "Revert selected change"} failed: ${message}`,
+            );
+            await refreshConflictUi().catch(() => {});
+        }
     };
 
     const handleCommitContextAction = async (params: {
@@ -1498,6 +1643,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // --- Commit panel file context menu commands ---
 
     context.subscriptions.push(
+        vscode.commands.registerCommand("intelligit.commitFileCompareWithLocal", async (ctx: unknown) => {
+            await compareCommitInfoFileWithLocal(ctx);
+        }),
+        vscode.commands.registerCommand("intelligit.commitFileCherryPickChange", async (ctx: unknown) => {
+            await applySelectedCommitFileChange(ctx, "cherry-pick");
+        }),
+        vscode.commands.registerCommand("intelligit.commitFileRevertChange", async (ctx: unknown) => {
+            await applySelectedCommitFileChange(ctx, "revert");
+        }),
         vscode.commands.registerCommand(
             "intelligit.fileRollback",
             async (ctx: { filePath?: string }) => {
