@@ -6,13 +6,14 @@ import { GitOps } from "../git/operations";
 import { buildWebviewShellHtml } from "./webviewHtml";
 import { getErrorMessage } from "../utils/errors";
 import { parseConflictVersions } from "../mergeEditor/conflictParser";
-import type { MergeEditorData } from "../mergeEditor/conflictParser";
+import type { MergeDiffOptions, MergeEditorData } from "../mergeEditor/conflictParser";
 
 export class MergeEditorPanel {
     private static panels = new Map<string, MergeEditorPanel>();
 
     private readonly panel: vscode.WebviewPanel;
     private disposed = false;
+    private diffOptions: MergeDiffOptions = { ignoreWhitespace: false };
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -88,6 +89,13 @@ export class MergeEditorPanel {
                 await this.loadConflictData();
                 break;
 
+            case "setIgnoreMode": {
+                const mode = msg.mode === "whitespace" ? "whitespace" : "none";
+                this.diffOptions = { ignoreWhitespace: mode === "whitespace" };
+                await this.loadConflictData();
+                break;
+            }
+
             case "applyResolution": {
                 const content = msg.content as string;
                 const fileUri = vscode.Uri.joinPath(this.workspaceRoot, this.filePath);
@@ -124,13 +132,19 @@ export class MergeEditorPanel {
     private async loadConflictData(): Promise<void> {
         try {
             const versions = await this.gitOps.getConflictFileVersions(this.filePath);
-            const segments = parseConflictVersions(versions.base, versions.ours, versions.theirs);
+            const segments = parseConflictVersions(
+                versions.base,
+                versions.ours,
+                versions.theirs,
+                this.diffOptions,
+            );
 
             const data: MergeEditorData = {
                 filePath: this.filePath,
                 segments,
                 oursLabel: this.oursSourceLabel,
                 theirsLabel: this.theirsSourceLabel,
+                diffOptions: this.diffOptions,
             };
 
             this.panel.webview.postMessage({ type: "setConflictData", data });

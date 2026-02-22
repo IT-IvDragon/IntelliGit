@@ -91,4 +91,25 @@ describe("merge conflict parser", () => {
             baseLines: ["b"],
         });
     });
+
+    it("can ignore whitespace-only line differences", () => {
+        const base = "function x() {\n  return 1;\n}";
+        const ours = "function x() {\n    return 1;\n}";
+        const theirs = "function x() {\n\treturn 1;\n}";
+
+        const strictSegments = parseConflictVersions(base, ours, theirs);
+        const ignoreWhitespaceSegments = parseConflictVersions(base, ours, theirs, {
+            ignoreWhitespace: true,
+        });
+
+        expect(strictSegments.some((seg) => seg.type === "conflict")).toBe(true);
+        expect(ignoreWhitespaceSegments).toHaveLength(1);
+        expect(ignoreWhitespaceSegments[0]).toMatchObject({ type: "common" });
+        if (ignoreWhitespaceSegments[0].type !== "common") {
+            throw new Error("Expected a common segment");
+        }
+        expect(ignoreWhitespaceSegments[0].lines.map((line) => line.replace(/\s+/g, " ").trim())).toEqual(
+            ["function x() {", "return 1;", "}"],
+        );
+    });
 });

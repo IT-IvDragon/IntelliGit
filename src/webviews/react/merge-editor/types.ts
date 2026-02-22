@@ -11,6 +11,7 @@ export type {
 
 export type OutboundMessage =
     | { type: "ready" }
+    | { type: "setIgnoreMode"; mode: "none" | "whitespace" }
     | { type: "applyResolution"; content: string }
     | { type: "acceptYours" }
     | { type: "acceptTheirs" }

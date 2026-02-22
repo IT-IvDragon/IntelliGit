@@ -1,7 +1,7 @@
 // Entry point for the 3-way merge editor webview. Renders three columns:
 // Ours (left), Result (middle), Theirs (right) with per-hunk controls.
 
-import React, { useCallback, useEffect, useMemo, useReducer } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
     MergeEditorData,
@@ -121,14 +121,41 @@ function padLines(lines: string[], count: number): string[] {
     return padded;
 }
 
+type LineNumberValue = number | null;
+
+interface LineNumberSpec {
+    primary: LineNumberValue[];
+    secondary?: LineNumberValue[];
+}
+
+function buildLineNumberValues(
+    startAt: number,
+    actualCount: number,
+    rowCount: number,
+): LineNumberValue[] {
+    const values: LineNumberValue[] = [];
+    for (let i = 0; i < rowCount; i++) {
+        values.push(i < actualCount ? startAt + i : null);
+    }
+    return values;
+}
+
 // --- Components ---
 
-function LineNumbers({ count, startLine }: { count: number; startLine: number }) {
+function LineNumbers({ primary, secondary }: LineNumberSpec) {
+    const rowCount = Math.max(primary.length, secondary?.length ?? 0);
+    const hasSecondary = Boolean(secondary);
+
     return (
-        <div className="line-numbers">
-            {Array.from({ length: count }, (_, i) => (
-                <div key={i} className="line-number">
-                    {startLine + i}
+        <div className={`line-numbers ${hasSecondary ? "has-secondary" : ""}`}>
+            {Array.from({ length: rowCount }, (_, i) => (
+                <div key={i} className="line-number-row">
+                    {hasSecondary ? (
+                        <div className="line-number line-number-secondary">
+                            {secondary?.[i] ?? ""}
+                        </div>
+                    ) : null}
+                    <div className="line-number line-number-primary">{primary[i] ?? ""}</div>
                 </div>
             ))}
         </div>
@@ -147,6 +174,22 @@ function IconArrowLeft(): React.ReactElement {
     return (
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
             <path fill="currentColor" d="M11 3l.7.7L7.4 8l4.3 4.3-.7.7-5-5z" />
+        </svg>
+    );
+}
+
+function IconChevronUp(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M3.7 10.8L8 6.5l4.3 4.3.7-.7L8 5.1 3 10.1z" />
+        </svg>
+    );
+}
+
+function IconChevronDown(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M3.7 5.2L3 5.9l5 5 5-5-.7-.7L8 9.5z" />
         </svg>
     );
 }
@@ -203,10 +246,52 @@ function IconLock(): React.ReactElement {
     );
 }
 
-function HighlightedLine({ line }: { line: string }): React.ReactElement {
-    if (!line) return <>{`\u00A0`}</>;
+function IconWarning(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path
+                fill="currentColor"
+                d="M8 1.6l6.5 11.3H1.5L8 1.6zm0 2L3.2 12h9.6L8 3.6zm-.7 2.1h1.4v3.7H7.3V5.7zm0 4.8h1.4v1.4H7.3v-1.4z"
+            />
+        </svg>
+    );
+}
+
+function IconCheck(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path fill="currentColor" d="M6.3 11.2L2.8 7.7l1-1 2.5 2.5 5.9-5.9 1 1z" />
+        </svg>
+    );
+}
+
+function IconSplitBoth(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path
+                fill="currentColor"
+                d="M1.5 8l4-4 .9.9L4 7.4h8L9.6 4.9l.9-.9 4 4-4 4-.9-.9 2.4-2.5H4l2.4 2.5-.9.9z"
+            />
+        </svg>
+    );
+}
+
+function IconDot(): React.ReactElement {
+    return (
+        <svg viewBox="0 0 16 16" width="8" height="8" aria-hidden="true">
+            <circle cx="8" cy="8" r="4" fill="currentColor" />
+        </svg>
+    );
+}
+
+function renderSyntaxHighlightedNodes(line: string, keyPrefix: string): React.ReactNode[] {
+    if (!line) return [<React.Fragment key={`${keyPrefix}-nbsp`}>{`\u00A0`}</React.Fragment>];
     if (line.trimStart().startsWith("//")) {
-        return <span className="tok-comment">{line}</span>;
+        return [
+            <span key={`${keyPrefix}-comment`} className="tok-comment">
+                {line}
+            </span>,
+        ];
     }
 
     const tokenRegex =
@@ -218,7 +303,7 @@ function HighlightedLine({ line }: { line: string }): React.ReactElement {
     for (const match of line.matchAll(tokenRegex)) {
         const start = match.index ?? 0;
         if (start > last) {
-            nodes.push(<span key={`txt-${idx++}`}>{line.slice(last, start)}</span>);
+            nodes.push(<span key={`${keyPrefix}-txt-${idx++}`}>{line.slice(last, start)}</span>);
         }
         const token = match[0];
         let className: string;
@@ -227,38 +312,155 @@ function HighlightedLine({ line }: { line: string }): React.ReactElement {
         else if (match[6]) className = "tok-constant";
         else className = "tok-number";
         nodes.push(
-            <span key={`tok-${idx++}`} className={className}>
+            <span key={`${keyPrefix}-tok-${idx++}`} className={className}>
                 {token}
             </span>,
         );
         last = start + token.length;
     }
     if (last < line.length) {
-        nodes.push(<span key={`txt-${idx++}`}>{line.slice(last)}</span>);
+        nodes.push(<span key={`${keyPrefix}-txt-${idx++}`}>{line.slice(last)}</span>);
     }
+    return nodes;
+}
+
+function HighlightedLine({ line }: { line: string }): React.ReactElement {
+    if (!line) return <>{`\u00A0`}</>;
+    return <>{renderSyntaxHighlightedNodes(line, "line")}</>;
+}
+
+function tokenizeWordDiff(line: string): string[] {
+    if (line === "") return [];
+    return line.match(/(\s+|[A-Za-z0-9_]+|[^A-Za-z0-9_\s]+)/g) ?? [line];
+}
+
+function computeTokenLcsPairs(a: string[], b: string[]): Array<[number, number]> {
+    const m = a.length;
+    const n = b.length;
+    if (m === 0 || n === 0) return [];
+
+    if (m * n > 40_000) {
+        // Greedy fallback to avoid expensive matrices on long lines.
+        const pairs: Array<[number, number]> = [];
+        let j = 0;
+        for (let i = 0; i < m && j < n; i++) {
+            while (j < n && b[j] !== a[i]) j++;
+            if (j < n) {
+                pairs.push([i, j]);
+                j++;
+            }
+        }
+        return pairs;
+    }
+
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--) {
+        for (let j = n - 1; j >= 0; j--) {
+            dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        }
+    }
+
+    const pairs: Array<[number, number]> = [];
+    let i = 0;
+    let j = 0;
+    while (i < m && j < n) {
+        if (a[i] === b[j]) {
+            pairs.push([i, j]);
+            i++;
+            j++;
+        } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+    return pairs;
+}
+
+function buildWordDiffMask(line: string, compareLine: string): boolean[] {
+    const tokens = tokenizeWordDiff(line);
+    const compareTokens = tokenizeWordDiff(compareLine);
+    const mask = tokens.map(() => true);
+
+    if (tokens.length === 0) return mask;
+    if (line === compareLine) return tokens.map(() => false);
+
+    const lcs = computeTokenLcsPairs(tokens, compareTokens);
+    for (const [i] of lcs) {
+        mask[i] = false;
+    }
+
+    return mask;
+}
+
+function WordDiffLine({
+    line,
+    compareLine,
+}: {
+    line: string;
+    compareLine: string;
+}): React.ReactElement {
+    if (!line) return <>{`\u00A0`}</>;
+    if (line === compareLine) return <HighlightedLine line={line} />;
+
+    const tokens = tokenizeWordDiff(line);
+    if (tokens.length === 0) return <>{`\u00A0`}</>;
+
+    const changedMask = buildWordDiffMask(line, compareLine);
+    const nodes: React.ReactNode[] = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        const changed = changedMask[i];
+        const syntaxNodes = renderSyntaxHighlightedNodes(token, `wd-${i}`);
+        if (!changed) {
+            nodes.push(<React.Fragment key={`same-${i}`}>{syntaxNodes}</React.Fragment>);
+            continue;
+        }
+
+        const isWhitespace = /^\s+$/.test(token);
+        nodes.push(
+            <span
+                key={`chg-${i}`}
+                className={`word-diff-change ${isWhitespace ? "word-diff-whitespace" : ""}`}
+            >
+                {syntaxNodes}
+            </span>,
+        );
+    }
+
     return <>{nodes}</>;
 }
 
 function CodeBlock({
     lines,
-    startLine,
     lineCount,
+    lineNumbers,
     className,
+    wordHighlight,
+    compareLines,
 }: {
     lines: string[];
-    startLine: number;
     lineCount: number;
+    lineNumbers: LineNumberSpec;
     className?: string;
+    wordHighlight?: boolean;
+    compareLines?: string[];
 }) {
     const padded = padLines(lines, lineCount);
+    const paddedCompare = compareLines ? padLines(compareLines, lineCount) : undefined;
 
     return (
-        <div className={`code-block ${className ?? ""}`}>
-            <LineNumbers count={lineCount} startLine={startLine} />
+        <div className={`code-block ${className ?? ""} ${wordHighlight ? "word-highlight" : ""}`}>
+            <LineNumbers primary={lineNumbers.primary} secondary={lineNumbers.secondary} />
             <div className="code-lines">
                 {padded.map((line, i) => (
                     <div key={i} className="code-line">
-                        <HighlightedLine line={line} />
+                        {wordHighlight && paddedCompare ? (
+                            <WordDiffLine line={line} compareLine={paddedCompare[i]} />
+                        ) : (
+                            <HighlightedLine line={line} />
+                        )}
                     </div>
                 ))}
             </div>
@@ -266,72 +468,237 @@ function CodeBlock({
     );
 }
 
+function getHunkStatus(
+    segment: ConflictSegment,
+    resolution: HunkResolution | undefined,
+): {
+    label: string;
+    tone: "warn" | "ok" | "muted";
+} {
+    if (segment.changeKind === "ours-only") {
+        return resolution === "none"
+            ? { label: "Dropped left-only change", tone: "muted" }
+            : { label: "Left-only change", tone: "muted" };
+    }
+    if (segment.changeKind === "theirs-only") {
+        return resolution === "none"
+            ? { label: "Dropped right-only change", tone: "muted" }
+            : { label: "Right-only change", tone: "muted" };
+    }
+
+    if (resolution === undefined) return { label: "Unresolved", tone: "warn" };
+    if (resolution === "ours") return { label: "Use left", tone: "ok" };
+    if (resolution === "theirs") return { label: "Use right", tone: "ok" };
+    if (resolution === "both") return { label: "Use both", tone: "ok" };
+    return { label: "Remove block", tone: "muted" };
+}
+
+function getHunkKindLabel(segment: ConflictSegment): string {
+    if (segment.changeKind === "ours-only") return "Left only";
+    if (segment.changeKind === "theirs-only") return "Right only";
+    return "Conflict";
+}
+
+function paneChangeCount(segments: MergeSegment[], side: "ours" | "theirs"): number {
+    return segments.filter((seg) => {
+        if (seg.type !== "conflict") return false;
+        if (side === "ours") return seg.changeKind !== "theirs-only";
+        return seg.changeKind !== "ours-only";
+    }).length;
+}
+
+interface SegmentPaneLineNumbers {
+    left: LineNumberSpec;
+    middle: LineNumberSpec;
+    right: LineNumberSpec;
+}
+
 function CommonSection({
     segment,
-    startLine,
     lineCount,
+    lineNumbers,
+    highlightWords,
 }: {
     segment: CommonSegment;
-    startLine: number;
     lineCount: number;
+    lineNumbers: SegmentPaneLineNumbers;
+    highlightWords: boolean;
 }) {
     return (
         <div className="segment segment-common">
             <div className="column column-left">
-                <CodeBlock lines={segment.lines} startLine={startLine} lineCount={lineCount} />
+                <CodeBlock
+                    lines={segment.lines}
+                    lineCount={lineCount}
+                    lineNumbers={lineNumbers.left}
+                    wordHighlight={highlightWords}
+                />
             </div>
             <div className="column column-middle result-column">
-                <CodeBlock lines={segment.lines} startLine={startLine} lineCount={lineCount} />
+                <CodeBlock
+                    lines={segment.lines}
+                    lineCount={lineCount}
+                    lineNumbers={lineNumbers.middle}
+                    wordHighlight={highlightWords}
+                />
             </div>
             <div className="column column-right">
-                <CodeBlock lines={segment.lines} startLine={startLine} lineCount={lineCount} />
+                <CodeBlock
+                    lines={segment.lines}
+                    lineCount={lineCount}
+                    lineNumbers={lineNumbers.right}
+                    wordHighlight={highlightWords}
+                />
             </div>
         </div>
     );
 }
 
+interface ConflictSectionProps {
+    segment: ConflictSegment;
+    resolution: HunkResolution | undefined;
+    lineCount: number;
+    lineNumbers: SegmentPaneLineNumbers;
+    onResolve: (id: number, resolution: HunkResolution) => void;
+    onSelect: (id: number) => void;
+    setSectionRef: (el: HTMLDivElement | null) => void;
+    isActive: boolean;
+    showDetails: boolean;
+    highlightWords: boolean;
+    conflictOrdinal: number;
+    trueConflictOrdinal?: number;
+}
+
 function ConflictSection({
     segment,
     resolution,
-    startLine,
     lineCount,
+    lineNumbers,
     onResolve,
-}: {
-    segment: ConflictSegment;
-    resolution: HunkResolution | undefined;
-    startLine: number;
-    lineCount: number;
-    onResolve: (id: number, resolution: HunkResolution) => void;
-}) {
+    onSelect,
+    setSectionRef,
+    isActive,
+    showDetails,
+    highlightWords,
+    conflictOrdinal,
+    trueConflictOrdinal,
+}: ConflictSectionProps) {
     const resultLines = getResultLines(segment, resolution);
+    const status = getHunkStatus(segment, resolution);
 
     const isOurs = resolution === "ours";
     const isTheirs = resolution === "theirs";
+    const isBoth = resolution === "both";
+    const isNone = resolution === "none";
+    const isResolved = segment.changeKind !== "conflict" || resolution !== undefined;
+    const kindLabel = getHunkKindLabel(segment);
+    const resultCompareLines =
+        resolution === "ours"
+            ? segment.theirsLines
+            : resolution === "theirs"
+              ? segment.oursLines
+              : segment.baseLines;
 
     return (
         <div
-            className={`segment segment-conflict change-${segment.changeKind} ${resolution ? "resolved" : "unresolved"}`}
+            ref={setSectionRef}
+            className={[
+                "segment",
+                "segment-conflict",
+                `change-${segment.changeKind}`,
+                isResolved ? "resolved" : "unresolved",
+                isActive ? "active" : "",
+            ]
+                .filter(Boolean)
+                .join(" ")}
+            data-conflict-id={segment.id}
+            onClick={() => onSelect(segment.id)}
         >
+            <div className="hunk-header">
+                <div className="hunk-header-left">
+                    <span className={`hunk-badge hunk-kind-${segment.changeKind}`}>
+                        {trueConflictOrdinal ? `#${trueConflictOrdinal}` : `#${conflictOrdinal}`}
+                    </span>
+                    <span className="hunk-kind-label">{kindLabel}</span>
+                    {showDetails ? (
+                        <span className="hunk-detail-lines">
+                            L:{segment.oursLines.length} R:{segment.theirsLines.length} Result:
+                            {resultLines.length}
+                        </span>
+                    ) : null}
+                </div>
+                <div className="hunk-header-center" onClick={(e) => e.stopPropagation()}>
+                    <button
+                        className={`hunk-choice ${isOurs ? "active" : ""}`}
+                        onClick={() => onResolve(segment.id, "ours")}
+                        title="Use left block"
+                    >
+                        <IconArrowRight />
+                        Left
+                    </button>
+                    {segment.changeKind === "conflict" ? (
+                        <button
+                            className={`hunk-choice ${isBoth ? "active" : ""}`}
+                            onClick={() => onResolve(segment.id, "both")}
+                            title="Use both blocks"
+                        >
+                            <IconSplitBoth />
+                            Both
+                        </button>
+                    ) : null}
+                    <button
+                        className={`hunk-choice ${isTheirs ? "active" : ""}`}
+                        onClick={() => onResolve(segment.id, "theirs")}
+                        title="Use right block"
+                    >
+                        <IconArrowLeft />
+                        Right
+                    </button>
+                    <button
+                        className={`hunk-choice danger ${isNone ? "active" : ""}`}
+                        onClick={() => onResolve(segment.id, "none")}
+                        title="Remove this block from result"
+                    >
+                        <IconClose />
+                        Drop
+                    </button>
+                </div>
+                <div className={`hunk-status tone-${status.tone}`}>
+                    <span className="toolbar-icon status-icon">
+                        {status.tone === "warn" ? (
+                            <IconWarning />
+                        ) : status.tone === "ok" ? (
+                            <IconCheck />
+                        ) : (
+                            <IconDot />
+                        )}
+                    </span>
+                    {status.label}
+                </div>
+            </div>
+
             <div className="hunk-columns">
                 <div className={`column column-left conflict-column ${isOurs ? "accepted" : ""}`}>
                     <CodeBlock
                         lines={segment.oursLines}
-                        startLine={startLine}
                         lineCount={lineCount}
+                        lineNumbers={lineNumbers.left}
                         className="conflict-ours"
+                        wordHighlight={highlightWords}
+                        compareLines={segment.theirsLines}
                     />
-                    <div className="conflict-actions-left">
+                    <div className="conflict-actions-left" onClick={(e) => e.stopPropagation()}>
                         <button
                             className="action-btn discard-btn"
                             onClick={() => onResolve(segment.id, "theirs")}
-                            title="Ignore"
+                            title="Ignore left block"
                         >
                             <IconClose />
                         </button>
                         <button
                             className={`action-btn accept-btn ${isOurs ? "active" : ""}`}
-                            onClick={() => onResolve(segment.id, isOurs ? "none" : "ours")}
-                            title="Accept"
+                            onClick={() => onResolve(segment.id, "ours")}
+                            title="Accept left block"
                         >
                             <IconArrowRight />
                         </button>
@@ -341,36 +708,40 @@ function ConflictSection({
                 <div className="column column-middle conflict-column result-column">
                     <CodeBlock
                         lines={resultLines}
-                        startLine={startLine}
                         lineCount={lineCount}
-                        className={`conflict-result ${resolution ? "resolved" : "unresolved"}`}
+                        lineNumbers={lineNumbers.middle}
+                        className={`conflict-result ${isResolved ? "resolved" : "unresolved"}`}
+                        wordHighlight={highlightWords}
+                        compareLines={resultCompareLines}
                     />
                 </div>
 
                 <div
                     className={`column column-right conflict-column ${isTheirs ? "accepted" : ""}`}
                 >
-                    <div className="conflict-actions-right">
+                    <div className="conflict-actions-right" onClick={(e) => e.stopPropagation()}>
                         <button
                             className={`action-btn accept-btn ${isTheirs ? "active" : ""}`}
-                            onClick={() => onResolve(segment.id, isTheirs ? "none" : "theirs")}
-                            title="Accept"
+                            onClick={() => onResolve(segment.id, "theirs")}
+                            title="Accept right block"
                         >
                             <IconArrowLeft />
                         </button>
                         <button
                             className="action-btn discard-btn"
                             onClick={() => onResolve(segment.id, "ours")}
-                            title="Ignore"
+                            title="Ignore right block"
                         >
                             <IconClose />
                         </button>
                     </div>
                     <CodeBlock
                         lines={segment.theirsLines}
-                        startLine={startLine}
                         lineCount={lineCount}
+                        lineNumbers={lineNumbers.right}
                         className="conflict-theirs"
+                        wordHighlight={highlightWords}
+                        compareLines={segment.oursLines}
                     />
                 </div>
             </div>
@@ -378,32 +749,167 @@ function ConflictSection({
     );
 }
 
+interface OverviewMarker {
+    id: number;
+    topPct: number;
+    heightPct: number;
+    changeKind: ConflictSegment["changeKind"];
+    resolved: boolean;
+}
+
+function OverviewRail({
+    markers,
+    activeConflictId,
+    onJump,
+}: {
+    markers: OverviewMarker[];
+    activeConflictId: number | null;
+    onJump: (id: number) => void;
+}) {
+    return (
+        <div className="overview-rail" aria-label="Conflict overview">
+            <div className="overview-track">
+                {markers.map((marker) => (
+                    <button
+                        key={marker.id}
+                        className={[
+                            "overview-marker",
+                            `marker-${marker.changeKind}`,
+                            marker.resolved ? "resolved" : "unresolved",
+                            activeConflictId === marker.id ? "active" : "",
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
+                        style={{
+                            top: `${marker.topPct}%`,
+                            height: `${marker.heightPct}%`,
+                        }}
+                        title={`Jump to hunk #${marker.id + 1}`}
+                        onClick={() => onJump(marker.id)}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function App() {
     const [state, dispatch] = useReducer(reducer, { data: null, error: null, resolutions: {} });
+    const [showDetails, setShowDetails] = useState(false);
+    const [highlightWords, setHighlightWords] = useState(true);
+    const [ignoreMode, setIgnoreMode] = useState<"none" | "whitespace">("none");
+    const [activeConflictId, setActiveConflictId] = useState<number | null>(null);
     const segments = state.data?.segments ?? [];
 
+    const conflictSectionRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
     const renderedSegments = useMemo(() => {
-        let lineCursor = 1;
+        let visualLineCursor = 1;
+        let oursCursor = 1;
+        let baseCursor = 1;
+        let theirsCursor = 1;
+        let resultCursor = 1;
+        let conflictOrdinal = 0;
+        let trueConflictOrdinal = 0;
+
         return segments.map((segment, index) => {
-            const lineCount =
-                segment.type === "common"
-                    ? Math.max(segment.lines.length, 1)
-                    : Math.max(
-                          segment.oursLines.length,
-                          getResultLines(segment, state.resolutions[segment.id]).length,
-                          segment.theirsLines.length,
-                          1,
-                      );
-            const startLine = lineCursor;
-            lineCursor += lineCount;
-            return { segment, index, startLine, lineCount };
+            let lineCount: number;
+            let lineNumbers: SegmentPaneLineNumbers;
+            let startLine: number;
+
+            if (segment.type === "common") {
+                const commonLen = segment.lines.length;
+                lineCount = Math.max(commonLen, 1);
+                startLine = visualLineCursor;
+                lineNumbers = {
+                    left: {
+                        primary: buildLineNumberValues(oursCursor, commonLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, commonLen, lineCount),
+                    },
+                    middle: {
+                        primary: buildLineNumberValues(resultCursor, commonLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, commonLen, lineCount),
+                    },
+                    right: {
+                        primary: buildLineNumberValues(theirsCursor, commonLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, commonLen, lineCount),
+                    },
+                };
+                oursCursor += commonLen;
+                baseCursor += commonLen;
+                theirsCursor += commonLen;
+                resultCursor += commonLen;
+            } else {
+                const resultLines = getResultLines(segment, state.resolutions[segment.id]);
+                const oursLen = segment.oursLines.length;
+                const theirsLen = segment.theirsLines.length;
+                const baseLen = segment.baseLines.length;
+                const resultLen = resultLines.length;
+
+                lineCount = Math.max(oursLen, resultLen, theirsLen, 1);
+                startLine = visualLineCursor;
+                lineNumbers = {
+                    left: {
+                        primary: buildLineNumberValues(oursCursor, oursLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, baseLen, lineCount),
+                    },
+                    middle: {
+                        primary: buildLineNumberValues(resultCursor, resultLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, baseLen, lineCount),
+                    },
+                    right: {
+                        primary: buildLineNumberValues(theirsCursor, theirsLen, lineCount),
+                        secondary: buildLineNumberValues(baseCursor, baseLen, lineCount),
+                    },
+                };
+                oursCursor += oursLen;
+                baseCursor += baseLen;
+                theirsCursor += theirsLen;
+                resultCursor += resultLen;
+            }
+
+            visualLineCursor += lineCount;
+
+            let computedConflictOrdinal: number | undefined;
+            let computedTrueConflictOrdinal: number | undefined;
+            if (segment.type === "conflict") {
+                conflictOrdinal += 1;
+                computedConflictOrdinal = conflictOrdinal;
+                if (segment.changeKind === "conflict") {
+                    trueConflictOrdinal += 1;
+                    computedTrueConflictOrdinal = trueConflictOrdinal;
+                }
+            }
+
+            return {
+                segment,
+                index,
+                startLine,
+                lineCount,
+                lineNumbers,
+                conflictOrdinal: computedConflictOrdinal,
+                trueConflictOrdinal: computedTrueConflictOrdinal,
+            };
         });
     }, [segments, state.resolutions]);
+
+    const conflictSegments = useMemo(
+        () => segments.filter((seg): seg is ConflictSegment => seg.type === "conflict"),
+        [segments],
+    );
+    const trueConflicts = useMemo(
+        () => conflictSegments.filter((seg) => seg.changeKind === "conflict"),
+        [conflictSegments],
+    );
+    const trueConflictIds = useMemo(() => trueConflicts.map((seg) => seg.id), [trueConflicts]);
 
     useEffect(() => {
         const vscode = getVsCodeApi();
         const handler = (event: MessageEvent<InboundMessage>) => {
             if (event.data.type === "setConflictData") {
+                setIgnoreMode(
+                    event.data.data.diffOptions?.ignoreWhitespace ? "whitespace" : "none",
+                );
                 dispatch({ type: "SET_DATA", data: event.data.data });
             } else if (event.data.type === "loadError") {
                 dispatch({ type: "SET_ERROR", message: event.data.message });
@@ -414,7 +920,19 @@ function App() {
         return () => window.removeEventListener("message", handler);
     }, []);
 
+    useEffect(() => {
+        setActiveConflictId((prev) => {
+            if (trueConflictIds.length === 0) return null;
+            if (prev !== null && trueConflictIds.includes(prev)) return prev;
+            const firstUnresolved = trueConflicts.find(
+                (seg) => state.resolutions[seg.id] === undefined,
+            );
+            return firstUnresolved?.id ?? trueConflictIds[0];
+        });
+    }, [trueConflictIds, trueConflicts, state.resolutions]);
+
     const handleResolve = useCallback((id: number, resolution: HunkResolution) => {
+        setActiveConflictId(id);
         dispatch({ type: "RESOLVE_HUNK", id, resolution });
     }, []);
 
@@ -470,6 +988,56 @@ function App() {
         getVsCodeApi().postMessage({ type: "close" });
     }, []);
 
+    const handleToggleIgnoreMode = useCallback(() => {
+        const nextMode: "none" | "whitespace" = ignoreMode === "none" ? "whitespace" : "none";
+        setIgnoreMode(nextMode);
+        getVsCodeApi().postMessage({ type: "setIgnoreMode", mode: nextMode });
+    }, [ignoreMode]);
+
+    const jumpToConflict = useCallback((id: number) => {
+        setActiveConflictId(id);
+        const target = conflictSectionRefs.current[id];
+        target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, []);
+
+    const moveActiveConflict = useCallback(
+        (direction: -1 | 1) => {
+            if (trueConflictIds.length === 0) return;
+            const currentIndex =
+                activeConflictId === null ? -1 : trueConflictIds.indexOf(activeConflictId);
+            const fallbackIndex = direction > 0 ? -1 : 0;
+            const baseIndex = currentIndex === -1 ? fallbackIndex : currentIndex;
+            const nextIndex =
+                (((baseIndex + direction) % trueConflictIds.length) + trueConflictIds.length) %
+                trueConflictIds.length;
+            jumpToConflict(trueConflictIds[nextIndex]);
+        },
+        [activeConflictId, jumpToConflict, trueConflictIds],
+    );
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            const tag = target?.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+            if (event.key === "n" || event.key === "F7") {
+                event.preventDefault();
+                moveActiveConflict(1);
+            } else if (event.key === "p" || (event.shiftKey && event.key === "F7")) {
+                event.preventDefault();
+                moveActiveConflict(-1);
+            } else if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                if (!state.data) return;
+                if (!allResolved(state.data.segments, state.resolutions)) return;
+                event.preventDefault();
+                handleApply();
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [handleApply, moveActiveConflict, state.data, state.resolutions]);
+
     if (state.error) {
         return (
             <div className="loading">
@@ -489,10 +1057,48 @@ function App() {
     const resolved = resolvedTrueConflictCount(segments, state.resolutions);
     const unresolved = total - resolved;
     const canApply = allResolved(segments, state.resolutions);
-    const changeCount = segments.length;
+    const changeCount = conflictSegments.length;
+    const oursChanges = paneChangeCount(segments, "ours");
+    const theirsChanges = paneChangeCount(segments, "theirs");
+    const currentConflictIndex =
+        activeConflictId !== null ? trueConflictIds.indexOf(activeConflictId) + 1 : 0;
+
+    const totalVisualLines = Math.max(
+        renderedSegments.reduce((sum, item) => sum + item.lineCount, 0),
+        1,
+    );
+    const overviewMarkers: OverviewMarker[] = renderedSegments
+        .filter(
+            (item): item is (typeof renderedSegments)[number] & { segment: ConflictSegment } => {
+                return item.segment.type === "conflict";
+            },
+        )
+        .map((item) => ({
+            id: item.segment.id,
+            topPct: ((item.startLine - 1) / totalVisualLines) * 100,
+            heightPct: Math.min(Math.max((item.lineCount / totalVisualLines) * 100, 1), 30),
+            changeKind: item.segment.changeKind,
+            resolved:
+                item.segment.changeKind !== "conflict" ||
+                state.resolutions[item.segment.id] !== undefined,
+        }));
+
+    const unresolvedTrueConflictIds = trueConflicts
+        .filter((seg) => state.resolutions[seg.id] === undefined)
+        .map((seg) => seg.id);
+    const nextUnresolvedId =
+        unresolvedTrueConflictIds.length > 0 ? unresolvedTrueConflictIds[0] : null;
 
     return (
-        <div className="merge-editor">
+        <div
+            className={[
+                "merge-editor",
+                highlightWords ? "words-highlighted" : "",
+                showDetails ? "details-expanded" : "",
+            ]
+                .filter(Boolean)
+                .join(" ")}
+        >
             <div className="merge-toolbar">
                 <div className="toolbar-left">
                     <button className="toolbar-btn subtle" onClick={handleApplyNonConflicting}>
@@ -501,25 +1107,89 @@ function App() {
                         </span>
                         Apply non-conflicting changes
                     </button>
+                    <div className="toolbar-nav-group">
+                        <button
+                            className="toolbar-icon-btn"
+                            onClick={() => moveActiveConflict(-1)}
+                            title="Previous conflict (P / Shift+F7)"
+                            disabled={total === 0}
+                        >
+                            <IconChevronUp />
+                        </button>
+                        <button
+                            className="toolbar-icon-btn"
+                            onClick={() => moveActiveConflict(1)}
+                            title="Next conflict (N / F7)"
+                            disabled={total === 0}
+                        >
+                            <IconChevronDown />
+                        </button>
+                    </div>
                     <div className="toolbar-separator" />
-                    <button className="toolbar-btn subtle">
+                    <button
+                        className="toolbar-btn subtle dropdown"
+                        onClick={handleToggleIgnoreMode}
+                        title="Re-parse conflicts with or without whitespace differences"
+                    >
                         <span className="toolbar-icon">
                             <IconFilter />
                         </span>
-                        Do not ignore
+                        {ignoreMode === "none" ? "Do not ignore" : "Ignore whitespace"}
+                        <span className="toolbar-icon dropdown-icon">
+                            <IconChevronDown />
+                        </span>
                     </button>
-                    <button className="toolbar-btn subtle">
+                    <button
+                        className={`toolbar-btn subtle ${highlightWords ? "active" : ""}`}
+                        onClick={() => setHighlightWords((v) => !v)}
+                        aria-pressed={highlightWords}
+                    >
                         <span className="toolbar-icon">
                             <IconEye />
                         </span>
                         Highlight words
                     </button>
+                    <button
+                        className={`toolbar-btn subtle ${showDetails ? "active" : ""}`}
+                        onClick={() => setShowDetails((v) => !v)}
+                        aria-pressed={showDetails}
+                    >
+                        Show Details
+                    </button>
                 </div>
+
+                <div className="toolbar-center">
+                    <span className="toolbar-status-pill">
+                        <span className="toolbar-icon">
+                            <IconWarning />
+                        </span>
+                        {unresolved} unresolved
+                    </span>
+                    <span className="toolbar-status-pill muted">
+                        {resolved}/{total} resolved
+                    </span>
+                    <span className="toolbar-status-pill muted">
+                        {changeCount} change{changeCount === 1 ? "" : "s"}
+                    </span>
+                    {currentConflictIndex > 0 ? (
+                        <button
+                            className="toolbar-inline-link"
+                            onClick={() => {
+                                if (nextUnresolvedId !== null) jumpToConflict(nextUnresolvedId);
+                            }}
+                            disabled={nextUnresolvedId === null}
+                            title="Jump to next unresolved conflict"
+                        >
+                            Hunk {currentConflictIndex}/{total}
+                        </button>
+                    ) : null}
+                </div>
+
                 <div className="toolbar-right">
                     <button
                         className="toolbar-btn"
                         onClick={handleAcceptAllYours}
-                        title="Accept all yours"
+                        title="Accept all left-side changes into the result"
                     >
                         <span className="toolbar-icon">
                             <IconArrowRight />
@@ -529,7 +1199,7 @@ function App() {
                     <button
                         className="toolbar-btn"
                         onClick={handleAcceptAllTheirs}
-                        title="Accept all theirs"
+                        title="Accept all right-side changes into the result"
                     >
                         <span className="toolbar-icon">
                             <IconArrowLeft />
@@ -547,65 +1217,110 @@ function App() {
                     </span>
                 </div>
                 <div className="merge-stats">
-                    {changeCount} change{changeCount === 1 ? "" : "s"}, {unresolved} conflict
-                    {unresolved === 1 ? "" : "s"}
+                    <span className="merge-stat-pill">{changeCount} changes</span>
+                    <span className={`merge-stat-pill ${unresolved > 0 ? "warn" : "ok"}`}>
+                        {unresolved} conflict{unresolved === 1 ? "" : "s"}
+                    </span>
                 </div>
             </div>
 
             <div className="pane-meta-row">
                 <div className="pane-meta">
                     <span className="pane-meta-label">
-                        <span className="toolbar-icon" style={{ marginRight: "6px" }}>
+                        <span className="toolbar-icon pane-lock">
                             <IconLock />
                         </span>
                         Changes from {state.data.oursLabel}
                     </span>
-                    <span className="show-details">Show Details</span>
+                    <span className="pane-meta-right-group">
+                        <span className="pane-meta-counts">
+                            {oursChanges} changes, {total} conflicts
+                        </span>
+                        <button className="show-details" onClick={() => setShowDetails((v) => !v)}>
+                            {showDetails ? "Hide Details" : "Show Details"}
+                        </button>
+                    </span>
                 </div>
                 <div className="pane-meta pane-meta-center">
                     <span>Result {state.data.filePath}</span>
                 </div>
                 <div className="pane-meta pane-meta-right">
                     <span className="pane-meta-label">
-                        <span className="toolbar-icon" style={{ marginRight: "6px" }}>
+                        <span className="toolbar-icon pane-lock">
                             <IconLock />
                         </span>
                         Changes from {state.data.theirsLabel}
                     </span>
-                    <span className="show-details">Show Details</span>
+                    <span className="pane-meta-right-group">
+                        <span className="pane-meta-counts">
+                            {theirsChanges} changes, {total} conflicts
+                        </span>
+                        <button className="show-details" onClick={() => setShowDetails((v) => !v)}>
+                            {showDetails ? "Hide Details" : "Show Details"}
+                        </button>
+                    </span>
                 </div>
             </div>
 
-            <div className="merge-content">
-                {renderedSegments.map(({ segment, index, startLine, lineCount }) =>
-                    segment.type === "common" ? (
-                        <CommonSection
-                            key={index}
-                            segment={segment}
-                            startLine={startLine}
-                            lineCount={lineCount}
-                        />
-                    ) : (
-                        <ConflictSection
-                            key={index}
-                            segment={segment}
-                            resolution={state.resolutions[segment.id]}
-                            startLine={startLine}
-                            lineCount={lineCount}
-                            onResolve={handleResolve}
-                        />
-                    ),
-                )}
+            <div className="merge-content-shell">
+                <div className="merge-content">
+                    {renderedSegments.map(
+                        ({
+                            segment,
+                            index,
+                            startLine,
+                            lineCount,
+                            lineNumbers,
+                            conflictOrdinal,
+                            trueConflictOrdinal,
+                        }) =>
+                            segment.type === "common" ? (
+                                <CommonSection
+                                    key={index}
+                                    segment={segment}
+                                    lineCount={lineCount}
+                                    lineNumbers={lineNumbers}
+                                    highlightWords={highlightWords}
+                                />
+                            ) : (
+                                <ConflictSection
+                                    key={index}
+                                    segment={segment}
+                                    resolution={state.resolutions[segment.id]}
+                                    lineCount={lineCount}
+                                    lineNumbers={lineNumbers}
+                                    onResolve={handleResolve}
+                                    onSelect={setActiveConflictId}
+                                    setSectionRef={(el) => {
+                                        conflictSectionRefs.current[segment.id] = el;
+                                    }}
+                                    isActive={activeConflictId === segment.id}
+                                    showDetails={showDetails}
+                                    highlightWords={highlightWords}
+                                    conflictOrdinal={conflictOrdinal ?? segment.id + 1}
+                                    trueConflictOrdinal={trueConflictOrdinal}
+                                />
+                            ),
+                    )}
+                </div>
+                <OverviewRail
+                    markers={overviewMarkers}
+                    activeConflictId={activeConflictId}
+                    onJump={jumpToConflict}
+                />
             </div>
 
             <div className="merge-footer">
                 <div className="footer-left">
-                    <button className="footer-btn secondary" onClick={handleBulkAcceptYours}>
-                        Accept Left
+                    <button className="footer-btn secondary ghost" onClick={handleBulkAcceptYours}>
+                        Use File Ours
                     </button>
-                    <button className="footer-btn secondary" onClick={handleBulkAcceptTheirs}>
-                        Accept Right
+                    <button className="footer-btn secondary ghost" onClick={handleBulkAcceptTheirs}>
+                        Use File Theirs
                     </button>
+                    <span className="footer-hint">
+                        `N`/`P` navigate conflicts • `Ctrl/Cmd+Enter` apply
+                    </span>
                 </div>
                 <div className="footer-right">
                     <button className="footer-btn secondary" onClick={handleClose}>
@@ -628,6 +1343,15 @@ function App() {
 
 const STYLES = `
 .merge-editor {
+    --merge-border: color-mix(in srgb, var(--vscode-panel-border, #3f4654) 70%, transparent);
+    --merge-toolbar-bg: color-mix(in srgb, var(--vscode-sideBar-background, #2b2d30) 82%, #000 18%);
+    --merge-header-bg: color-mix(in srgb, var(--vscode-editorGroupHeader-tabsBackground, #31343a) 88%, #000 12%);
+    --merge-muted: var(--vscode-descriptionForeground, #9ca3af);
+    --merge-accent: var(--vscode-textLink-foreground, #4ea1ff);
+    --merge-warning: #f2c572;
+    --merge-danger: #d86c6c;
+    --merge-ok: #79c18d;
+
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -645,7 +1369,7 @@ const STYLES = `
     justify-content: center;
     gap: 12px;
     height: 100vh;
-    color: var(--vscode-descriptionForeground);
+    color: var(--merge-muted);
 }
 .error-message {
     color: var(--vscode-errorForeground, #f48771);
@@ -656,7 +1380,7 @@ const STYLES = `
     padding: 4px 14px;
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
-    border: none;
+    border: 1px solid var(--merge-border);
     border-radius: 2px;
     cursor: pointer;
     font-size: 12px;
@@ -670,21 +1394,48 @@ const STYLES = `
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 28px;
-    padding: 0 8px;
-    background: var(--vscode-sideBar-background, var(--vscode-editorGroupHeader-tabsBackground));
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    min-height: 30px;
+    padding: 2px 8px;
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--merge-toolbar-bg) 90%, white 10%),
+            var(--merge-toolbar-bg)
+        );
+    border-bottom: 1px solid var(--merge-border);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
 }
 .toolbar-left,
-.toolbar-right {
+.toolbar-right,
+.toolbar-center {
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+}
+.toolbar-left {
+    flex: 1 1 auto;
+}
+.toolbar-center {
+    justify-content: center;
+    flex: 0 1 auto;
+    gap: 6px;
+}
+.toolbar-right {
+    flex: 1 0 auto;
+    justify-content: flex-end;
+}
+.toolbar-nav-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 2px;
 }
 .toolbar-separator {
     width: 1px;
-    height: 14px;
-    background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #444));
+    height: 16px;
+    background: color-mix(in srgb, var(--merge-border) 80%, transparent);
     margin: 0 4px;
 }
 .toolbar-icon {
@@ -695,99 +1446,235 @@ const STYLES = `
     height: 12px;
     color: var(--vscode-icon-foreground, currentColor);
 }
-.toolbar-btn {
+.toolbar-btn,
+.toolbar-icon-btn {
     height: 24px;
-    padding: 0 6px;
-    border: none;
     border-radius: 4px;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--vscode-foreground);
     font-size: 12px;
-    line-height: 24px;
     cursor: pointer;
     opacity: 0.9;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
 }
-.toolbar-btn:hover {
-    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1));
+.toolbar-btn {
+    padding: 0 7px;
+}
+.toolbar-icon-btn {
+    width: 22px;
+    padding: 0;
+}
+.toolbar-btn:hover,
+.toolbar-icon-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+    border-color: color-mix(in srgb, var(--merge-border) 80%, transparent);
     opacity: 1;
 }
-.toolbar-btn.subtle {
-    /* No difference in PyCharm, all top buttons are subtle */
+.toolbar-btn:disabled,
+.toolbar-icon-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
 }
-.toolbar-btn.subtle:hover {
-    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1));
+.toolbar-btn.active,
+.toolbar-btn[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--vscode-button-background, #0e639c) 34%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-button-background, #0e639c) 64%, transparent);
+    opacity: 1;
+}
+.toolbar-btn.dropdown {
+    gap: 4px;
+}
+.toolbar-btn .dropdown-icon {
+    opacity: 0.7;
+    margin-left: -1px;
+}
+.toolbar-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(242, 197, 114, 0.35);
+    background: rgba(242, 197, 114, 0.08);
+    color: var(--merge-warning);
+    font-size: 11px;
+    white-space: nowrap;
+}
+.toolbar-status-pill.muted {
+    color: var(--merge-muted);
+    border-color: color-mix(in srgb, var(--merge-border) 85%, transparent);
+    background: rgba(255, 255, 255, 0.02);
+}
+.toolbar-inline-link {
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--merge-accent);
+    font-size: 11px;
+    cursor: pointer;
+}
+.toolbar-inline-link:hover:not(:disabled) {
+    background: rgba(78, 161, 255, 0.08);
+    border-color: rgba(78, 161, 255, 0.18);
+}
+.toolbar-inline-link:disabled {
+    opacity: 0.4;
+    cursor: default;
 }
 
 .merge-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+    min-height: 34px;
     padding: 4px 10px;
-    background: var(--vscode-editorGroupHeader-tabsBackground);
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    background: var(--merge-header-bg);
+    border-bottom: 1px solid var(--merge-border);
     flex-shrink: 0;
 }
 .merge-title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    min-width: 0;
 }
 .file-path {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     color: var(--vscode-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .conflict-counter {
-    color: var(--vscode-descriptionForeground);
-    font-size: 13px;
+    color: var(--merge-muted);
+    font-size: 12px;
+    white-space: nowrap;
 }
 .merge-stats {
-    color: var(--vscode-descriptionForeground);
-    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.merge-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--merge-border) 85%, transparent);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--merge-muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+.merge-stat-pill.warn {
+    color: var(--merge-warning);
+    border-color: rgba(242, 197, 114, 0.28);
+    background: rgba(242, 197, 114, 0.06);
+}
+.merge-stat-pill.ok {
+    color: var(--merge-ok);
+    border-color: rgba(121, 193, 141, 0.25);
+    background: rgba(121, 193, 141, 0.05);
 }
 
 .pane-meta-row {
     display: flex;
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    background: var(--vscode-editorGroupHeader-tabsBackground);
+    border-bottom: 1px solid var(--merge-border);
+    background: color-mix(in srgb, var(--merge-header-bg) 82%, #000 18%);
+    min-height: 28px;
+    flex-shrink: 0;
 }
 .pane-meta {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 12px;
-    color: var(--vscode-descriptionForeground);
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 10px;
+    color: var(--merge-muted);
     font-size: 11px;
-    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    border-right: 1px solid var(--merge-border);
 }
 .pane-meta-label {
     display: flex;
     align-items: center;
+    gap: 5px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pane-lock {
+    opacity: 0.75;
+}
+.pane-meta-right-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.pane-meta-counts {
+    color: color-mix(in srgb, var(--merge-muted) 88%, transparent);
+    white-space: nowrap;
 }
 .pane-meta-center {
     justify-content: center;
     color: var(--vscode-foreground);
+    font-weight: 500;
 }
 .pane-meta-right {
     border-right: none;
 }
 .show-details {
-    color: var(--vscode-textLink-foreground, #4ea1ff);
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--merge-accent);
     cursor: pointer;
+    font-size: 11px;
 }
 .show-details:hover {
     text-decoration: underline;
+    background: rgba(78, 161, 255, 0.06);
 }
 
-.merge-content {
+.merge-content-shell {
+    position: relative;
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
+    min-height: 0;
+    background: var(--vscode-editor-background);
+}
+.merge-content {
+    height: 100%;
+    overflow: auto hidden;
     font-family: var(--vscode-editor-font-family, monospace);
     font-size: var(--vscode-editor-font-size, 12px);
-    line-height: 22px;
+    line-height: 20px;
     background: var(--vscode-editor-background);
+    padding-right: 14px;
+}
+.merge-content::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+.merge-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 .segment {
@@ -796,174 +1683,386 @@ const STYLES = `
 .column {
     flex: 1;
     min-width: 0;
-    /* overflow: hidden; Removed to allow action buttons to float outside */
-    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    border-right: 1px solid var(--merge-border);
+    background: color-mix(in srgb, var(--vscode-editor-background) 95%, #0b0d11 5%);
 }
 .column-right {
     border-right: none;
 }
+.result-column {
+    border-left: 1px solid var(--merge-border);
+    border-right: 1px solid var(--merge-border);
+}
 .code-block {
     display: grid;
-    grid-template-columns: 46px 1fr;
-    overflow: hidden; /* Added overflow hidden just to code block instead of column */
+    grid-template-columns: 74px 1fr;
+    min-height: 0;
+    overflow: hidden;
 }
 .line-numbers {
-    background: var(--vscode-editorGutter-background, var(--vscode-sideBar-background, transparent));
-    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    color: var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground));
+    background: color-mix(
+        in srgb,
+        var(--vscode-editorGutter-background, var(--vscode-sideBar-background, transparent)) 82%,
+        #111 18%
+    );
+    border-right: 1px solid var(--merge-border);
+    color: var(--vscode-editorLineNumber-foreground, var(--merge-muted));
+}
+.line-number-row {
+    display: grid;
+    grid-template-columns: 1fr;
+}
+.line-numbers.has-secondary .line-number-row {
+    grid-template-columns: 1fr 1fr;
 }
 .line-number {
     padding: 0 8px 0 4px;
     text-align: right;
-    min-height: 22px;
-    line-height: 22px;
+    min-height: 20px;
+    line-height: 20px;
     font-size: 11px;
     opacity: 0.92;
+    border-left: 1px solid transparent;
+}
+.line-number-secondary {
+    color: color-mix(in srgb, var(--merge-muted) 72%, transparent);
+    font-size: 10px;
+    padding-right: 4px;
+}
+.line-number-primary {
+    padding-left: 4px;
+}
+.line-numbers.has-secondary .line-number-primary {
+    border-left-color: color-mix(in srgb, var(--merge-border) 60%, transparent);
 }
 .code-lines {
     min-width: 0;
+    position: relative;
 }
 .code-line {
     padding: 0 10px;
     white-space: pre;
-    line-height: 22px;
-    min-height: 22px;
+    line-height: 20px;
+    min-height: 20px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 .segment-common .code-line {
-    color: var(--vscode-editor-foreground);
+    color: color-mix(in srgb, var(--vscode-editor-foreground) 90%, transparent);
 }
+.words-highlighted .segment-conflict .word-highlight .code-line {
+    background-image: linear-gradient(
+        180deg,
+        transparent 0,
+        transparent calc(100% - 1px),
+        rgba(255, 221, 120, 0.08) calc(100% - 1px),
+        rgba(255, 221, 120, 0.08) 100%
+    );
+}
+
 .segment-conflict {
     display: block;
-    margin: 1px 0 2px;
-    border-top: 1px solid var(--vscode-merge-border, var(--vscode-panel-border, transparent));
-    border-bottom: 1px solid var(--vscode-merge-border, var(--vscode-panel-border, transparent));
+    margin: 2px 0 3px;
+    border-top: 1px solid color-mix(in srgb, var(--merge-border) 92%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--merge-border) 92%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+.segment-conflict.active {
+    border-top-color: rgba(78, 161, 255, 0.55);
+    border-bottom-color: rgba(78, 161, 255, 0.55);
+    box-shadow:
+        inset 0 0 0 1px rgba(78, 161, 255, 0.18),
+        0 0 0 1px rgba(78, 161, 255, 0.08);
+}
+.hunk-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
+    padding: 2px 8px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.06));
+    border-bottom: 1px solid color-mix(in srgb, var(--merge-border) 80%, transparent);
+}
+.hunk-header-left,
+.hunk-header-center {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.hunk-header-left {
+    flex: 1 1 auto;
+}
+.hunk-header-center {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.hunk-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 1px solid color-mix(in srgb, var(--merge-border) 85%, transparent);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--merge-muted);
+}
+.hunk-badge.hunk-kind-conflict {
+    color: #f0b3b3;
+    border-color: rgba(216, 108, 108, 0.35);
+    background: rgba(216, 108, 108, 0.10);
+}
+.hunk-badge.hunk-kind-ours-only,
+.hunk-badge.hunk-kind-theirs-only {
+    color: #9ec3ff;
+    border-color: rgba(91, 137, 214, 0.35);
+    background: rgba(91, 137, 214, 0.08);
+}
+.hunk-kind-label {
+    font-size: 11px;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+}
+.hunk-detail-lines {
+    font-size: 10px;
+    color: var(--merge-muted);
+    white-space: nowrap;
+}
+.hunk-choice {
+    height: 19px;
+    padding: 0 6px;
+    border: 1px solid color-mix(in srgb, var(--merge-border) 78%, transparent);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.01);
+    color: var(--merge-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    cursor: pointer;
+}
+.hunk-choice:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--vscode-foreground);
+}
+.hunk-choice.active {
+    background: color-mix(in srgb, var(--vscode-button-background, #0e639c) 26%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-button-background, #0e639c) 58%, transparent);
+    color: var(--vscode-button-foreground, #fff);
+}
+.hunk-choice.danger.active {
+    background: rgba(216, 108, 108, 0.18);
+    border-color: rgba(216, 108, 108, 0.45);
+}
+.hunk-status {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 180px;
+    color: var(--merge-muted);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hunk-status.tone-warn {
+    color: var(--merge-warning);
+}
+.hunk-status.tone-ok {
+    color: var(--merge-ok);
+}
+.hunk-status .status-icon {
+    width: 10px;
+    height: 10px;
 }
 
 .conflict-column {
     position: relative;
+    overflow: visible;
 }
 .hunk-columns {
     display: flex;
 }
 .conflict-actions-left {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 2px;
+    right: -1px;
     display: flex;
     gap: 0;
-    z-index: 10;
+    z-index: 5;
 }
 .conflict-actions-right {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 2px;
+    left: -1px;
     display: flex;
     gap: 0;
-    z-index: 10;
+    z-index: 5;
 }
 .action-btn {
-    width: 20px;
-    height: 20px;
-    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    width: 18px;
+    height: 18px;
+    border: 1px solid color-mix(in srgb, var(--merge-border) 80%, transparent);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 11px;
     line-height: 1;
-    background: var(--vscode-editorGroupHeader-tabsBackground);
+    background: color-mix(in srgb, var(--merge-header-bg) 86%, #000 14%);
     color: var(--vscode-foreground);
     opacity: 0.95;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 .action-btn:hover {
     background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1));
     opacity: 1;
 }
 .accept-btn.active {
-    border-color: var(--vscode-focusBorder, #4ea1ff);
-    background: var(--vscode-button-background);
+    border-color: color-mix(in srgb, var(--vscode-focusBorder, #4ea1ff) 70%, transparent);
+    background: color-mix(in srgb, var(--vscode-button-background, #0e639c) 78%, #000 22%);
     color: var(--vscode-button-foreground, #ffffff);
 }
 .discard-btn:hover {
-    background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+    background: rgba(216, 108, 108, 0.15);
     color: var(--vscode-errorForeground, #f48771);
 }
 
-/* True conflicts — deep red */
-.change-conflict .conflict-ours .code-line,
-.change-conflict .conflict-theirs .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.conflictBlockBg};
-    color: var(--vscode-editor-foreground);
+.conflict-ours .code-lines,
+.conflict-theirs .code-lines,
+.conflict-result .code-lines {
+    position: relative;
 }
-.change-conflict .conflict-result.unresolved .code-line {
+.conflict-ours .code-lines::before,
+.conflict-theirs .code-lines::before,
+.conflict-result .code-lines::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.conflict-result .code-lines::before {
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.change-conflict .conflict-ours .code-lines::before,
+.change-conflict .conflict-theirs .code-lines::before {
+    background: ${PYCHARM_THEME.mergeEditor.conflictBlockBg};
+}
+.change-conflict .conflict-result.unresolved .code-lines::before {
     background: ${PYCHARM_THEME.mergeEditor.conflictResultBg};
-    color: var(--vscode-editor-foreground);
 }
-
-/* One-side-only changes — muted blue */
-.change-ours-only .conflict-ours .code-line {
+.change-ours-only .conflict-ours .code-lines::before,
+.change-theirs-only .conflict-theirs .code-lines::before {
     background: ${PYCHARM_THEME.mergeEditor.nonConflictBlockBg};
-    color: var(--vscode-editor-foreground);
 }
-.change-ours-only .conflict-theirs .code-line,
-.change-theirs-only .conflict-ours .code-line {
-    color: var(--vscode-editor-foreground);
-}
-.change-theirs-only .conflict-theirs .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.nonConflictBlockBg};
-    color: var(--vscode-editor-foreground);
-}
-.change-ours-only .conflict-result.unresolved .code-line,
-.change-theirs-only .conflict-result.unresolved .code-line {
+.change-ours-only .conflict-result.unresolved .code-lines::before,
+.change-theirs-only .conflict-result.unresolved .code-lines::before {
     background: ${PYCHARM_THEME.mergeEditor.nonConflictResultBg};
-    color: var(--vscode-editor-foreground);
 }
-
-/* Resolved result — green for all types */
-.conflict-result.resolved .code-line {
+.conflict-result.resolved .code-lines::before {
     background: ${PYCHARM_THEME.mergeEditor.addedResultBg};
+}
+
+.conflict-ours .code-line,
+.conflict-theirs .code-line,
+.conflict-result .code-line {
+    position: relative;
+    z-index: 1;
     color: var(--vscode-editor-foreground);
 }
-
-.result-column {
-    border-left: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-    border-right: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+.segment-conflict.active .conflict-result.unresolved .code-lines::before {
+    box-shadow:
+        inset 0 0 0 1px rgba(78, 161, 255, 0.14),
+        inset 0 0 18px rgba(78, 161, 255, 0.05);
 }
 
-.change-conflict .column-left.accepted .conflict-ours .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.conflictBlockBg};
+.overview-rail {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    pointer-events: none;
 }
-.change-conflict .column-right.accepted .conflict-theirs .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.conflictBlockBg};
+.overview-track {
+    position: absolute;
+    top: 3px;
+    right: 1px;
+    bottom: 3px;
+    width: 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    pointer-events: auto;
 }
-.change-ours-only .column-left.accepted .conflict-ours .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.nonConflictBlockBg};
+.overview-marker {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    min-height: 2px;
+    border: none;
+    padding: 0;
+    margin: 0;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0.95;
 }
-.change-theirs-only .column-right.accepted .conflict-theirs .code-line {
-    background: ${PYCHARM_THEME.mergeEditor.nonConflictBlockBg};
+.overview-marker.marker-conflict.unresolved {
+    background: rgba(216, 108, 108, 0.9);
+}
+.overview-marker.marker-conflict.resolved {
+    background: rgba(121, 193, 141, 0.8);
+}
+.overview-marker.marker-ours-only,
+.overview-marker.marker-theirs-only {
+    background: rgba(91, 137, 214, 0.85);
+}
+.overview-marker.active {
+    outline: 1px solid rgba(255, 255, 255, 0.65);
+    outline-offset: 0;
+    box-shadow: 0 0 0 1px rgba(78, 161, 255, 0.6);
+}
+.overview-marker:hover {
+    filter: brightness(1.1);
 }
 
 .merge-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 32px;
+    gap: 8px;
+    min-height: 34px;
     padding: 4px 10px;
-    background: var(--vscode-editorGroupHeader-tabsBackground);
-    border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    background: var(--merge-header-bg);
+    border-top: 1px solid var(--merge-border);
     flex-shrink: 0;
 }
-.footer-left, .footer-right {
+.footer-left,
+.footer-right {
     display: flex;
+    align-items: center;
     gap: 6px;
+    min-width: 0;
+}
+.footer-left {
+    flex: 1 1 auto;
+}
+.footer-right {
+    flex: 0 0 auto;
 }
 .footer-btn {
     min-height: 22px;
     padding: 0 12px;
-    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    border: 1px solid color-mix(in srgb, var(--merge-border) 90%, transparent);
     border-radius: 2px;
     cursor: pointer;
     font-size: 11px;
@@ -981,11 +2080,25 @@ const STYLES = `
     cursor: not-allowed;
 }
 .footer-btn.secondary {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
+    background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.1));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
 }
 .footer-btn.secondary:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.16));
+}
+.footer-btn.secondary.ghost {
+    background: transparent;
+    color: var(--merge-muted);
+}
+.footer-btn.secondary.ghost:hover {
+    color: var(--vscode-foreground);
+}
+.footer-hint {
+    color: var(--merge-muted);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tok-comment {
@@ -1003,6 +2116,43 @@ const STYLES = `
 }
 .tok-constant {
     color: var(--vscode-symbolIcon-constantForeground, #4fc1ff);
+}
+.word-diff-change {
+    background: rgba(255, 208, 97, 0.16);
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(255, 208, 97, 0.12);
+}
+.word-diff-change.word-diff-whitespace {
+    background: rgba(255, 208, 97, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 208, 97, 0.06);
+}
+
+@media (max-width: 1200px) {
+    .toolbar-center {
+        display: none;
+    }
+    .pane-meta-counts {
+        display: none;
+    }
+    .hunk-status {
+        display: none;
+    }
+}
+
+@media (max-width: 980px) {
+    .hunk-header {
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .hunk-header-center {
+        order: 3;
+        width: 100%;
+        justify-content: flex-start;
+        padding-bottom: 2px;
+    }
+    .footer-hint {
+        display: none;
+    }
 }
 `;
 

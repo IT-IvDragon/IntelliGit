@@ -25,6 +25,11 @@ export interface MergeEditorData {
     segments: MergeSegment[];
     oursLabel: string;
     theirsLabel: string;
+    diffOptions?: MergeDiffOptions;
+}
+
+export interface MergeDiffOptions {
+    ignoreWhitespace?: boolean;
 }
 
 /**
@@ -33,15 +38,20 @@ export interface MergeEditorData {
  * each other) are "common"; regions where either side diverges are
  * "conflict".
  */
-export function parseConflictVersions(base: string, ours: string, theirs: string): MergeSegment[] {
+export function parseConflictVersions(
+    base: string,
+    ours: string,
+    theirs: string,
+    options: MergeDiffOptions = {},
+): MergeSegment[] {
     const baseLines = splitLines(base);
     const oursLines = splitLines(ours);
     const theirsLines = splitLines(theirs);
 
-    const oursEdits = diffLines(baseLines, oursLines);
-    const theirsEdits = diffLines(baseLines, theirsLines);
+    const oursEdits = diffLines(baseLines, oursLines, options);
+    const theirsEdits = diffLines(baseLines, theirsLines, options);
 
-    return buildSegments(baseLines, oursLines, theirsLines, oursEdits, theirsEdits);
+    return buildSegments(baseLines, oursLines, theirsLines, oursEdits, theirsEdits, options);
 }
 
 function splitLines(text: string): string[] {
@@ -58,8 +68,19 @@ interface EditRange {
     modEnd: number;
 }
 
-function diffLines(base: string[], modified: string[]): EditRange[] {
-    const lcs = computeLCS(base, modified);
+function normalizeLineForDiff(line: string, options: MergeDiffOptions): string {
+    if (options.ignoreWhitespace) {
+        // Match editor "ignore whitespace" behavior approximately by collapsing
+        // all whitespace runs and trimming line ends for line-level comparisons.
+        return line.replace(/\s+/g, " ").trim();
+    }
+    return line;
+}
+
+function diffLines(base: string[], modified: string[], options: MergeDiffOptions): EditRange[] {
+    const baseComparable = base.map((line) => normalizeLineForDiff(line, options));
+    const modifiedComparable = modified.map((line) => normalizeLineForDiff(line, options));
+    const lcs = computeLCS(baseComparable, modifiedComparable);
     const edits: EditRange[] = [];
     let bi = 0;
     let mi = 0;
@@ -153,6 +174,7 @@ function buildSegments(
     theirsLines: string[],
     oursEdits: EditRange[],
     theirsEdits: EditRange[],
+    options: MergeDiffOptions,
 ): MergeSegment[] {
     // Build a per-base-line edit map for each side
     const baseLen = baseLines.length;
@@ -196,7 +218,7 @@ function buildSegments(
             : baseLines.slice(bi, endBase);
 
         // If both sides made the same change, it's not a conflict
-        if (arraysEqual(oLines, tLines)) {
+        if (arraysEqual(oLines, tLines, options)) {
             if (oLines.length > 0) {
                 segments.push({ type: "common", lines: oLines });
             }
@@ -236,10 +258,11 @@ function buildBaseEditMap(baseLen: number, edits: EditRange[]): Map<number, Edit
     return map;
 }
 
-function arraysEqual(a: string[], b: string[]): boolean {
+function arraysEqual(a: string[], b: string[], options: MergeDiffOptions): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return false;
+        if (normalizeLineForDiff(a[i], options) !== normalizeLineForDiff(b[i], options))
+            return false;
     }
     return true;
 }
