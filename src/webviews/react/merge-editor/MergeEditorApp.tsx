@@ -472,7 +472,8 @@ function alignCompareLinesForWordDiff(lines: string[], compareLines: string[]): 
         const action = trace[i][j];
         if (action === "pair") {
             // Only pair lines for word-diff if they are at least moderately similar.
-            aligned[i] = tokenSimilarityRatio(lines[i], compareLines[j]) >= 0.28 ? compareLines[j] : "";
+            aligned[i] =
+                tokenSimilarityRatio(lines[i], compareLines[j]) >= 0.28 ? compareLines[j] : "";
             i++;
             j++;
         } else if (action === "skipA") {
@@ -569,7 +570,9 @@ function CodeBlock({
     compareLines?: string[];
 }) {
     const padded = padLines(lines, lineCount);
-    const alignedCompare = compareLines ? alignCompareLinesForWordDiff(lines, compareLines) : undefined;
+    const alignedCompare = compareLines
+        ? alignCompareLinesForWordDiff(lines, compareLines)
+        : undefined;
     const paddedCompare = alignedCompare ? padLines(alignedCompare, lineCount) : undefined;
 
     return (

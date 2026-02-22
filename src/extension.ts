@@ -84,12 +84,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     };
 
     const getJetBrainsMergeToolPath = (): string => {
-        return (
-            vscode.workspace
-                .getConfiguration("intelligit")
-                .get<string>("jetbrainsMergeTool.path", "")
-                .trim()
-        );
+        return vscode.workspace
+            .getConfiguration("intelligit")
+            .get<string>("jetbrainsMergeTool.path", "")
+            .trim();
     };
 
     const getDefaultJetBrainsMergeToolPath = (): string => {
@@ -139,8 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const suggested = existing || detected || getDefaultJetBrainsMergeToolPath();
         const input = await vscode.window.showInputBox({
             title: "JetBrains Merge Tool Path",
-            prompt:
-                "Enter a JetBrains IDE binary path/command (pycharm, idea, webstorm) or a macOS .app bundle path.",
+            prompt: "Enter a JetBrains IDE binary path/command (pycharm, idea, webstorm) or a macOS .app bundle path.",
             placeHolder: suggested,
             value: suggested,
             ignoreFocusOut: true,
@@ -284,6 +281,156 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (opened) return;
         }
         await openBuiltInMergeEditorForFile(filePath);
+    };
+
+    const normalizeGitPath = (fsPathValue: string): string => fsPathValue.split(path.sep).join("/");
+
+    const getRepoRelativeFilePathFromUri = (uri: vscode.Uri): string | null => {
+        if (uri.scheme !== "file") return null;
+        const relative = path.relative(repoRoot, uri.fsPath);
+        if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+        return normalizeGitPath(relative);
+    };
+
+    const getEditorContextFileUri = (ctx?: unknown): vscode.Uri | null => {
+        if (ctx instanceof vscode.Uri) return ctx;
+        const activeUri = vscode.window.activeTextEditor?.document.uri;
+        return activeUri?.scheme === "file" ? activeUri : null;
+    };
+
+    const openDiffAgainstGitRef = async (
+        fileUri: vscode.Uri,
+        repoRelativeFilePath: string,
+        ref: string,
+        sourceLabel: "revision" | "branch",
+    ): Promise<void> => {
+        const trimmedRef = ref.trim();
+        if (!trimmedRef) return;
+
+        const currentDoc = await vscode.workspace.openTextDocument(fileUri);
+        const refContent = await gitOps.getFileContentAtRef(repoRelativeFilePath, trimmedRef);
+        const leftDoc = await vscode.workspace.openTextDocument({
+            content: refContent,
+            language: currentDoc.languageId,
+        });
+        const title = `${repoRelativeFilePath} (${sourceLabel}: ${trimmedRef}) <-> Working Tree`;
+        await vscode.commands.executeCommand("vscode.diff", leftDoc.uri, fileUri, title);
+    };
+
+    const compareEditorFileWithBranch = async (ctx?: unknown): Promise<void> => {
+        const fileUri = getEditorContextFileUri(ctx);
+        if (!fileUri) {
+            vscode.window.showErrorMessage(
+                "Compare with Branch is only available for local files.",
+            );
+            return;
+        }
+
+        const repoRelativeFilePath = getRepoRelativeFilePathFromUri(fileUri);
+        if (!repoRelativeFilePath) {
+            vscode.window.showErrorMessage(
+                "Selected file is outside the current IntelliGit repository workspace.",
+            );
+            return;
+        }
+
+        try {
+            const branches = await gitOps.getBranches();
+            const picks = branches
+                .slice()
+                .sort((a, b) => {
+                    if (a.isRemote !== b.isRemote) return a.isRemote ? 1 : -1;
+                    if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                })
+                .map((branch) => ({
+                    label: branch.isCurrent ? `${branch.name} (current)` : branch.name,
+                    description: branch.isRemote ? "remote branch" : "local branch",
+                    detail: branch.hash,
+                    refName: branch.name,
+                }));
+
+            const picked = await vscode.window.showQuickPick(picks, {
+                title: "Compare with Branch",
+                placeHolder: `Select a branch for ${repoRelativeFilePath}`,
+                ignoreFocusOut: true,
+                matchOnDescription: true,
+                matchOnDetail: true,
+            });
+            if (!picked) return;
+
+            await openDiffAgainstGitRef(fileUri, repoRelativeFilePath, picked.refName, "branch");
+        } catch (error) {
+            const message = getErrorMessage(error);
+            vscode.window.showErrorMessage(`Compare with branch failed: ${message}`);
+        }
+    };
+
+    const compareEditorFileWithRevision = async (ctx?: unknown): Promise<void> => {
+        const fileUri = getEditorContextFileUri(ctx);
+        if (!fileUri) {
+            vscode.window.showErrorMessage(
+                "Compare with Revision is only available for local files.",
+            );
+            return;
+        }
+
+        const repoRelativeFilePath = getRepoRelativeFilePathFromUri(fileUri);
+        if (!repoRelativeFilePath) {
+            vscode.window.showErrorMessage(
+                "Selected file is outside the current IntelliGit repository workspace.",
+            );
+            return;
+        }
+
+        try {
+            const historyEntries = await gitOps.getFileHistoryEntries(repoRelativeFilePath, 20);
+            const historyPicks = historyEntries.map((entry) => ({
+                label: `${entry.shortHash}  ${entry.subject || "(no subject)"}`,
+                description: entry.author,
+                detail: entry.date,
+                refName: entry.hash,
+            }));
+            const manualSentinel = "__manual__";
+            const picks = [
+                ...historyPicks,
+                {
+                    label: "$(edit) Enter revision manually",
+                    description: "Commit hash, tag, or ref name",
+                    detail: undefined,
+                    refName: manualSentinel,
+                },
+            ];
+
+            const picked = await vscode.window.showQuickPick(picks, {
+                title: "Compare with Revision",
+                placeHolder:
+                    historyPicks.length > 0
+                        ? `Select a recent revision for ${repoRelativeFilePath}`
+                        : `No recent file history found. Enter a revision for ${repoRelativeFilePath}`,
+                ignoreFocusOut: true,
+                matchOnDescription: true,
+                matchOnDetail: true,
+            });
+            if (!picked) return;
+
+            let refName = picked.refName;
+            if (refName === manualSentinel) {
+                const input = await vscode.window.showInputBox({
+                    title: "Compare with Revision",
+                    prompt: `Enter a commit hash, tag, or ref for ${repoRelativeFilePath}`,
+                    placeHolder: "HEAD~1",
+                    ignoreFocusOut: true,
+                });
+                if (!input?.trim()) return;
+                refName = input.trim();
+            }
+
+            await openDiffAgainstGitRef(fileUri, repoRelativeFilePath, refName, "revision");
+        } catch (error) {
+            const message = getErrorMessage(error);
+            vscode.window.showErrorMessage(`Compare with revision failed: ${message}`);
+        }
     };
 
     context.subscriptions.push(
@@ -889,6 +1036,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (!filePath) return;
             await openMergeConflictForFile(filePath);
         }),
+        vscode.commands.registerCommand("intelligit.compareWithRevision", async (ctx?: unknown) => {
+            await compareEditorFileWithRevision(ctx);
+        }),
+        vscode.commands.registerCommand("intelligit.compareWithBranch", async (ctx?: unknown) => {
+            await compareEditorFileWithBranch(ctx);
+        }),
         vscode.commands.registerCommand("intelligit.detectJetBrainsMergeTool", async () => {
             await detectAndPickJetBrainsMergeToolPath();
         }),
@@ -898,7 +1051,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 const filePath = resolveConflictPath(ctx);
                 if (!filePath) return;
                 await openJetBrainsMergeToolForFile(filePath);
-            }
+            },
         ),
         vscode.commands.registerCommand("intelligit.conflictAcceptYours", async (ctx: unknown) => {
             const filePath = resolveConflictPath(ctx);

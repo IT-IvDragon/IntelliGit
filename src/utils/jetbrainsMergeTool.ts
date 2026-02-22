@@ -92,7 +92,8 @@ function getProductPreferenceScore(productKey: string | null): number {
 }
 
 function rankCandidates(a: DetectedJetBrainsCandidate, b: DetectedJetBrainsCandidate): number {
-    const scoreDelta = getProductPreferenceScore(b.productKey) - getProductPreferenceScore(a.productKey);
+    const scoreDelta =
+        getProductPreferenceScore(b.productKey) - getProductPreferenceScore(a.productKey);
     if (scoreDelta !== 0) return scoreDelta;
     const mtimeDelta = b.mtimeMs - a.mtimeMs;
     if (mtimeDelta !== 0) return mtimeDelta > 0 ? 1 : -1;
@@ -130,7 +131,9 @@ async function listDirectories(rootDir: string): Promise<string[]> {
 async function listFiles(rootDir: string): Promise<string[]> {
     try {
         const entries = await fsp.readdir(rootDir, { withFileTypes: true });
-        return entries.filter((entry) => entry.isFile()).map((entry) => path.join(rootDir, entry.name));
+        return entries
+            .filter((entry) => entry.isFile())
+            .map((entry) => path.join(rootDir, entry.name));
     } catch {
         return [];
     }
@@ -226,9 +229,7 @@ async function resolveExecutableFromMacAppBundle(appBundlePath: string): Promise
         if (await isExecutableFile(candidate)) return candidate;
     }
 
-    throw new Error(
-        `No executable file found in ${path.join(appBundlePath, "Contents/MacOS")}.`,
-    );
+    throw new Error(`No executable file found in ${path.join(appBundlePath, "Contents/MacOS")}.`);
 }
 
 async function detectMacJetBrainsAppBundleCandidates(): Promise<DetectedJetBrainsCandidate[]> {
@@ -411,7 +412,11 @@ function sanitizeFileNamePart(value: string): string {
     return value.replace(/[^\w.-]+/g, "_");
 }
 
-function buildTempFileNames(relativeFilePath: string): { base: string; ours: string; theirs: string } {
+function buildTempFileNames(relativeFilePath: string): {
+    base: string;
+    ours: string;
+    theirs: string;
+} {
     const ext = path.extname(relativeFilePath);
     const baseName = path.basename(relativeFilePath, ext);
     const safe = sanitizeFileNamePart(baseName || "merge");

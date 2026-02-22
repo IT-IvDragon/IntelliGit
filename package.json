@@ -173,6 +173,18 @@
                 "category": "IntelliGit"
             },
             {
+                "command": "intelligit.compareWithRevision",
+                "title": "Compare with Revision",
+                "category": "IntelliGit",
+                "icon": "$(git-commit)"
+            },
+            {
+                "command": "intelligit.compareWithBranch",
+                "title": "Compare with Branch",
+                "category": "IntelliGit",
+                "icon": "$(git-branch)"
+            },
+            {
                 "command": "intelligit.fileRefresh",
                 "title": "Refresh",
                 "category": "IntelliGit",
@@ -228,7 +240,33 @@
                 "icon": "$(diff-multiple)"
             }
         ],
+        "submenus": [
+            {
+                "id": "intelligit.editorContext",
+                "label": "IntelliGit",
+                "icon": "$(git-branch)"
+            }
+        ],
         "menus": {
+            "editor/context": [
+                {
+                    "submenu": "intelligit.editorContext",
+                    "when": "resourceScheme == file",
+                    "group": "navigation@9"
+                }
+            ],
+            "intelligit.editorContext": [
+                {
+                    "command": "intelligit.compareWithRevision",
+                    "when": "resourceScheme == file",
+                    "group": "1_compare@1"
+                },
+                {
+                    "command": "intelligit.compareWithBranch",
+                    "when": "resourceScheme == file",
+                    "group": "1_compare@2"
+                }
+            ],
             "view/title": [
                 {
                     "command": "intelligit.refresh",

@@ -654,6 +654,46 @@ export class GitOps {
         ]);
     }
 
+    async getFileHistoryEntries(
+        filePath: string,
+        maxCount: number = 30,
+    ): Promise<
+        Array<{ hash: string; shortHash: string; author: string; date: string; subject: string }>
+    > {
+        const raw = await this.executor.run([
+            "log",
+            `--max-count=${maxCount}`,
+            "--pretty=format:%H%x09%h%x09%an%x09%aI%x09%s",
+            "--follow",
+            "--",
+            filePath,
+        ]);
+
+        return raw
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+                const [hash = "", shortHash = "", author = "", date = "", ...subjectParts] =
+                    line.split("\t");
+                return {
+                    hash,
+                    shortHash,
+                    author,
+                    date,
+                    subject: subjectParts.join("\t"),
+                };
+            })
+            .filter((entry) => entry.hash && entry.shortHash);
+    }
+
+    async getFileContentAtRef(filePath: string, ref: string): Promise<string> {
+        const trimmedRef = ref.trim();
+        if (!trimmedRef) throw new Error("Git ref is empty.");
+        if (!filePath.trim()) throw new Error("File path is empty.");
+        return this.executor.run(["show", `${trimmedRef}:${filePath}`]);
+    }
+
     async getConflictedFiles(): Promise<string[]> {
         const out = await this.executor.run(["diff", "--name-only", "--diff-filter=U"]);
         return out
