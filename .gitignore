@@ -16,4 +16,4 @@ coverage/
 .vexp/
 
 CLAUDE.md
-.github/
+.github/copilot-instructions.md
