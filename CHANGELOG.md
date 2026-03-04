@@ -5,6 +5,20 @@ All notable changes to IntelliGit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-03-04
+
+### Fixed
+
+- Fixed "ambiguous argument" error in commit graph when a branch used as filter is deleted. The stale branch reference is now cleared and the graph falls back to showing all branches.
+
+## [0.5.2] - 2026-03-04
+
+### Fixed
+
+- Fixed `groupByDir` setting not persisting across webview reloads. The toggle state is now saved to and restored from `vscode.getState()`. (PR #13 by sivertillia)
+- Fixed `useCheckedFiles` overwriting all webview state keys on every update. State writes now merge with existing keys instead of replacing them.
+- Excluded `.vexp/` from VSIX packaging to prevent build failures caused by non-file entries (Unix sockets).
+
 ## [0.5.1] - 2026-03-04
 
 ### Fixed
