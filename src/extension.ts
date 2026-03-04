@@ -127,7 +127,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const config = getIntelliGitConfig();
         if (config && typeof config.update === "function") {
-            await config.update("jetbrainsMergeTool.path", trimmed, vscode.ConfigurationTarget.Global);
+            await config.update(
+                "jetbrainsMergeTool.path",
+                trimmed,
+                vscode.ConfigurationTarget.Global,
+            );
         }
 
         const resolutionText =
@@ -246,9 +250,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
         }
 
-        throw (lastReadError instanceof Error
+        throw lastReadError instanceof Error
             ? lastReadError
-            : new Error("Failed to read merged file after external merge tool closed."));
+            : new Error("Failed to read merged file after external merge tool closed.");
     };
 
     const openJetBrainsMergeToolForFile = async (filePath: string): Promise<boolean> => {
@@ -272,7 +276,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try {
             const versions = await gitOps.getConflictFileVersions(filePath);
             const outputFileFsPath = path.join(repoRoot, filePath);
-            const beforeMergeText = await fs.promises.readFile(outputFileFsPath, "utf8").catch(() => null);
+            const beforeMergeText = await fs.promises
+                .readFile(outputFileFsPath, "utf8")
+                .catch(() => null);
 
             await runWithNotificationProgress(
                 `Opening JetBrains merge tool for ${filePath}...`,
@@ -382,7 +388,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             .flatMap((group) => group.tabs)
             .find((tab) => {
                 const input = tab.input;
-                return input instanceof vscode.TabInputText && input.uri.toString() === uri.toString();
+                return (
+                    input instanceof vscode.TabInputText && input.uri.toString() === uri.toString()
+                );
             });
         if (!matchingTab) return;
         try {
@@ -583,6 +591,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 const message = getErrorMessage(error);
                 console.error(`Commit action '${action}' failed:`, error);
                 vscode.window.showErrorMessage(`Commit action failed: ${message}`);
+            }
+        }),
+    );
+
+    context.subscriptions.push(
+        commitGraph.onOpenCommitFileDiff(async ({ commitHash, filePath }) => {
+            try {
+                await openCommitFileDiff(commitHash, filePath);
+            } catch (error) {
+                const message = getErrorMessage(error);
+                vscode.window.showErrorMessage(`Failed to open commit diff: ${message}`);
+            }
+        }),
+        commitInfo.onOpenCommitFileDiff(async ({ commitHash, filePath }) => {
+            try {
+                await openCommitFileDiff(commitHash, filePath);
+            } catch (error) {
+                const message = getErrorMessage(error);
+                vscode.window.showErrorMessage(`Failed to open commit diff: ${message}`);
             }
         }),
     );
@@ -793,7 +820,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         actionLabel: string,
         knownParents?: string[],
     ): Promise<MainlineParentPickResult> => {
-        const parents = knownParents ?? await getCommitParentHashes(hash);
+        const parents = knownParents ?? (await getCommitParentHashes(hash));
         if (parents.length <= 1) return { kind: "notMerge" };
 
         const pick = await vscode.window.showQuickPick(
@@ -852,6 +879,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             "--",
             filePath,
         ]);
+    };
+
+    const openCommitFileDiff = async (commitHash: string, filePath: string): Promise<void> => {
+        const parents = await getCommitParentHashes(commitHash);
+
+        let parentRef: string;
+        let parentDisplayHash: string;
+        if (parents.length > 1) {
+            const result = await pickMainlineParent(commitHash, "Open Commit File Diff", parents);
+            if (result.kind === "cancelled") return;
+            if (result.kind === "notMerge") return;
+            parentRef = `${commitHash}^${result.parentNumber}`;
+            parentDisplayHash = parents[result.parentNumber - 1] ?? parentRef;
+        } else {
+            parentRef = parents.length === 0 ? EMPTY_TREE_HASH : parents[0];
+            parentDisplayHash = parentRef;
+        }
+
+        let leftContent: string;
+        try {
+            leftContent = await gitOps.getFileContentAtRef(filePath, parentRef);
+        } catch {
+            leftContent = "";
+        }
+
+        let rightContent: string;
+        try {
+            rightContent = await gitOps.getFileContentAtRef(filePath, commitHash);
+        } catch {
+            rightContent = "";
+        }
+
+        // Detect language from the working tree file if it exists on disk.
+        let language: string | undefined;
+        const diskPath = path.join(repoRoot, filePath);
+        try {
+            const diskDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(diskPath));
+            language = diskDoc.languageId;
+        } catch {
+            // File may not exist on disk (deleted or only in history).
+        }
+
+        const leftDoc = await vscode.workspace.openTextDocument({ content: leftContent, language });
+        const rightDoc = await vscode.workspace.openTextDocument({
+            content: rightContent,
+            language,
+        });
+        const shortParent = parentDisplayHash.slice(0, 8);
+        const shortCommit = commitHash.slice(0, 8);
+        const title = `${filePath} (${shortParent} ↔ ${shortCommit})`;
+        await vscode.commands.executeCommand("vscode.diff", leftDoc.uri, rightDoc.uri, title);
+        await closeTemporaryDiffSourceTab(leftDoc.uri);
     };
 
     const applyPatchTextToRepo = async (patchText: string, reverse: boolean): Promise<void> => {
@@ -1062,6 +1141,87 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 await refreshAll();
                 return;
             }
+            case "pushAllUpToHere": {
+                if (!(await isCommitUnpushed(validatedHash))) {
+                    vscode.window.showErrorMessage(
+                        "Push All up to Here is available only for unpushed commits.",
+                    );
+                    return;
+                }
+
+                const checkedOutBranchName = await getCheckedOutBranchName();
+                if (!checkedOutBranchName) {
+                    vscode.window.showErrorMessage(
+                        "Push All up to Here is only available when a local branch is checked out.",
+                    );
+                    return;
+                }
+
+                try {
+                    await executor.run(["merge-base", "--is-ancestor", validatedHash, "HEAD"]);
+                } catch {
+                    vscode.window.showErrorMessage(
+                        `Commit ${short} is not in the current branch history.`,
+                    );
+                    return;
+                }
+
+                const currentBranch =
+                    currentBranches.find(
+                        (branch) => !branch.isRemote && branch.name === checkedOutBranchName,
+                    ) ?? {
+                        name: checkedOutBranchName,
+                        hash: "",
+                        isRemote: false,
+                        isCurrent: true,
+                        ahead: 0,
+                        behind: 0,
+                    };
+
+                let target = resolveTrackedRemoteBranch(currentBranch);
+                let setUpstream = false;
+                if (!target) {
+                    const remote = await resolveRemoteName(currentBranch);
+                    if (!remote) {
+                        vscode.window.showErrorMessage(
+                            `No remote configured for branch ${currentBranch.name}.`,
+                        );
+                        return;
+                    }
+
+                    const setUpstreamConfirm = await vscode.window.showWarningMessage(
+                        `Branch '${currentBranch.name}' has no upstream. Set upstream to '${remote}/${currentBranch.name}' and push commits up to ${short}?`,
+                        { modal: true },
+                        "Set Upstream and Push",
+                    );
+                    if (setUpstreamConfirm !== "Set Upstream and Push") return;
+
+                    target = { remote, remoteBranch: currentBranch.name };
+                    setUpstream = true;
+                }
+
+                const confirm = await vscode.window.showWarningMessage(
+                    `Push all commits up to ${short} to ${target.remote}/${target.remoteBranch}?`,
+                    { modal: true },
+                    "Push",
+                );
+                if (confirm !== "Push") return;
+
+                await runWithNotificationProgress(`Pushing commits up to ${short}...`, async () => {
+                    const destinationRef = `refs/heads/${target.remoteBranch}`;
+                    const refspec = `${validatedHash}:${destinationRef}`;
+                    await executor.run([
+                        "push",
+                        ...(setUpstream ? ["-u"] : []),
+                        target.remote,
+                        refspec,
+                    ]);
+                });
+
+                vscode.window.showInformationMessage(`Pushed commits up to ${short}.`);
+                await refreshAll();
+                return;
+            }
             case "newBranch": {
                 const branchName = await vscode.window.showInputBox({
                     prompt: `New branch from ${short}`,
@@ -1251,7 +1411,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     const isFilePathContext = (value: unknown): value is { filePath: string } => {
-        return !!value && typeof value === "object" && "filePath" in value && typeof value.filePath === "string";
+        return (
+            !!value &&
+            typeof value === "object" &&
+            "filePath" in value &&
+            typeof value.filePath === "string"
+        );
     };
 
     const resolveConflictPath = (ctx: unknown): string | null =>
@@ -1655,15 +1820,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // --- Commit panel file context menu commands ---
 
     context.subscriptions.push(
-        vscode.commands.registerCommand("intelligit.commitFileCompareWithLocal", async (ctx: unknown) => {
-            await compareCommitInfoFileWithLocal(ctx);
-        }),
-        vscode.commands.registerCommand("intelligit.commitFileCherryPickChange", async (ctx: unknown) => {
-            await applySelectedCommitFileChange(ctx, "cherry-pick");
-        }),
-        vscode.commands.registerCommand("intelligit.commitFileRevertChange", async (ctx: unknown) => {
-            await applySelectedCommitFileChange(ctx, "revert");
-        }),
+        vscode.commands.registerCommand(
+            "intelligit.commitFileCompareWithLocal",
+            async (ctx: unknown) => {
+                await compareCommitInfoFileWithLocal(ctx);
+            },
+        ),
+        vscode.commands.registerCommand(
+            "intelligit.commitFileCherryPickChange",
+            async (ctx: unknown) => {
+                await applySelectedCommitFileChange(ctx, "cherry-pick");
+            },
+        ),
+        vscode.commands.registerCommand(
+            "intelligit.commitFileRevertChange",
+            async (ctx: unknown) => {
+                await applySelectedCommitFileChange(ctx, "revert");
+            },
+        ),
         vscode.commands.registerCommand(
             "intelligit.fileRollback",
             async (ctx: { filePath?: string }) => {

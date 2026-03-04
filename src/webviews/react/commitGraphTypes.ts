@@ -29,6 +29,7 @@ export const COMMIT_ACTION_VALUES = [
     "checkoutRevision",
     "resetCurrentToHere",
     "revertCommit",
+    "pushAllUpToHere",
     "undoCommit",
     "editCommitMessage",
     "dropCommit",
@@ -56,7 +57,8 @@ export type CommitGraphOutbound =
     | { type: "loadMore" }
     | { type: "filterBranch"; branch: string | null }
     | { type: "branchAction"; action: BranchAction; branchName: string }
-    | { type: "commitAction"; action: CommitAction; hash: string };
+    | { type: "commitAction"; action: CommitAction; hash: string }
+    | { type: "openCommitFileDiff"; commitHash: string; filePath: string };
 
 /** Messages sent FROM the extension host TO the webview. */
 export type CommitGraphInbound =
