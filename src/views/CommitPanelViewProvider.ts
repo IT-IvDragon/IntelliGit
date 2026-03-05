@@ -264,8 +264,7 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
                 break;
             }
 
-            case "shelveSave":
-            case "stashSave": {
+            case "shelveSave": {
                 const name = (msg.name as string | undefined) || "Shelved changes";
                 const paths = msg.paths as string[] | undefined;
                 await this.gitOps.shelveSave(paths, name);
@@ -274,8 +273,7 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
                 break;
             }
 
-            case "shelfPop":
-            case "stashPop": {
+            case "shelfPop": {
                 const index = msg.index as number;
                 await this.gitOps.shelvePop(index);
                 vscode.window.showInformationMessage("Unshelved changes.");
@@ -283,8 +281,7 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
                 break;
             }
 
-            case "shelfApply":
-            case "stashApply": {
+            case "shelfApply": {
                 const index = msg.index as number;
                 await this.gitOps.shelveApply(index);
                 vscode.window.showInformationMessage("Applied shelved changes.");
@@ -292,8 +289,7 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
                 break;
             }
 
-            case "shelfDelete":
-            case "stashDrop": {
+            case "shelfDelete": {
                 const index = msg.index as number;
                 const confirm = await vscode.window.showWarningMessage(
                     "Delete this shelved change?",

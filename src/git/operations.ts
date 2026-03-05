@@ -621,26 +621,6 @@ export class GitOps {
         return this.executor.run(["diff", `${ref}^`, ref, "--", filePath]);
     }
 
-    async stashSave(message: string, paths?: string[]): Promise<string> {
-        return this.shelveSave(paths, message);
-    }
-
-    async stashPop(index: number = 0): Promise<string> {
-        return this.shelvePop(index);
-    }
-
-    async stashApply(index: number = 0): Promise<string> {
-        return this.shelveApply(index);
-    }
-
-    async stashList(): Promise<StashEntry[]> {
-        return this.listShelved();
-    }
-
-    async stashDrop(index: number): Promise<string> {
-        return this.shelveDelete(index);
-    }
-
     async getFileHistory(filePath: string, maxCount: number = 50): Promise<string> {
         return this.executor.run([
             "log",
