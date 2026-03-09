@@ -36,19 +36,28 @@ export function ShelfTab({
     const vscode = getVsCodeApi();
     const tree = useFileTree(shelfFiles, groupByDir);
     const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+    // expandedIndex tracks which stash entry the user has toggled open locally.
+    // It is set optimistically on click (before files arrive from the extension host).
+    // selectedIndex (prop) updates once the host responds with loaded files.
+    // Collapsing only clears local state — no host message needed since no files to load.
+    // The useEffect below re-syncs expandedIndex from selectedIndex on parent-driven
+    // changes (e.g. after apply/pop/delete removes the selected stash).
     const [expandedIndex, setExpandedIndex] = useState<number | null>(selectedIndex);
+    const [isLoading, setIsLoading] = useState(false);
 
-    // Sync local expanded state when parent selection changes (e.g. after apply/pop/delete)
     useEffect(() => {
         setExpandedIndex(selectedIndex);
+        setIsLoading(false);
     }, [selectedIndex]);
 
     const handleStashClick = useCallback(
         (index: number) => {
             if (expandedIndex === index) {
                 setExpandedIndex(null);
+                setIsLoading(false);
             } else {
                 setExpandedIndex(index);
+                setIsLoading(true);
                 vscode.postMessage({ type: "shelfSelect", index });
             }
         },
@@ -193,7 +202,7 @@ export function ShelfTab({
                                             alignItems="center"
                                             fontSize="10.5px"
                                             gap="4px"
-                                            color="#d8ca64"
+                                            color="var(--vscode-gitDecoration-modifiedResourceForeground, #d8ca64)"
                                             flexShrink={0}
                                         >
                                             <Box
@@ -212,6 +221,16 @@ export function ShelfTab({
                                         </Box>
                                     )}
                                 </Flex>
+                                {isExpanded && !hasFiles && isLoading && (
+                                    <Box
+                                        pl="28px"
+                                        py="4px"
+                                        fontSize="12px"
+                                        color="var(--vscode-descriptionForeground)"
+                                    >
+                                        Loading...
+                                    </Box>
+                                )}
                                 {hasFiles && (
                                     <>
                                         <Box h={`${fileTreeHeight}px`} overflowY="auto">
