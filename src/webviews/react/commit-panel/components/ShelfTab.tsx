@@ -105,6 +105,14 @@ export function ShelfTab({
         fileTreeHeightRef.current = fileTreeHeight;
     }, [fileTreeHeight]);
 
+    const dragCleanupRef = useRef<(() => void) | null>(null);
+
+    useEffect(() => {
+        return () => {
+            dragCleanupRef.current?.();
+        };
+    }, []);
+
     const handleFileTreeDragStart = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -114,17 +122,22 @@ export function ShelfTab({
             const delta = ev.clientY - startY;
             setFileTreeHeight(Math.max(60, startH + delta));
         };
-        const onMouseUp = () => {
+        const cleanup = () => {
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
             document.body.style.cursor = "";
             document.body.style.userSelect = "";
+            dragCleanupRef.current = null;
+        };
+        const onMouseUp = () => {
+            cleanup();
         };
 
         document.addEventListener("mousemove", onMouseMove);
         document.addEventListener("mouseup", onMouseUp);
         document.body.style.cursor = "row-resize";
         document.body.style.userSelect = "none";
+        dragCleanupRef.current = cleanup;
     }, []);
 
     return (
