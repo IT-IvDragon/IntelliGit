@@ -331,10 +331,11 @@ export class GitOps {
                         deletions: 0,
                     });
                 }
-                // Skip the unstaged M entry for newly added files (index === 'A').
-                // A new file that was edited after staging is still just a new file —
-                // showing a duplicate "M" row is misleading.
-                if (unstagedStatus && index !== "A") {
+                // Skip only unstaged "M" for newly added files (index === 'A').
+                // A new file edited after staging is still just a new file —
+                // the duplicate "M" row is misleading. Other unstaged statuses
+                // (e.g. "D" for a staged-add then deleted) must still be shown.
+                if (unstagedStatus && !(index === "A" && unstagedStatus === "M")) {
                     files.push({
                         path,
                         status: unstagedStatus,

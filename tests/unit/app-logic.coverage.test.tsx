@@ -92,19 +92,41 @@ describe("app logic coverage", () => {
         await flush();
 
         act(() => {
-            document.getElementById("branch-main")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("branch-null")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("branch-action")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("filter-short")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("filter-long")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("filter-empty")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("commit-select")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("commit-action")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("load-more")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            document.getElementById("load-more")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("branch-main")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("branch-null")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("branch-action")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("filter-short")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("filter-long")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("filter-empty")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("commit-select")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("commit-action")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("load-more")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("load-more")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         });
 
-        const divider = document.querySelector('[data-testid="commit-graph-divider"]') as HTMLElement;
+        const divider = document.querySelector(
+            '[data-testid="commit-graph-divider"]',
+        ) as HTMLElement;
         expect(divider).toBeTruthy();
         act(() => {
             divider.dispatchEvent(
@@ -130,7 +152,15 @@ describe("app logic coverage", () => {
         vi.doMock("../../src/webviews/react/commit-panel/hooks/useExtensionMessages", () => ({
             useExtensionMessages: () => [
                 {
-                    files: [{ path: "src/a.ts", status: "M", staged: false, additions: 1, deletions: 0 }],
+                    files: [
+                        {
+                            path: "src/a.ts",
+                            status: "M",
+                            staged: false,
+                            additions: 1,
+                            deletions: 0,
+                        },
+                    ],
                     stashes: [],
                     shelfFiles: [],
                     selectedShelfIndex: null,
@@ -152,7 +182,7 @@ describe("app logic coverage", () => {
             }),
         }));
         vi.doMock("../../src/webviews/react/commit-panel/hooks/useVsCodeApi", () => ({
-            getVsCodeApi: () => ({ postMessage }),
+            getVsCodeApi: () => ({ postMessage, getState: () => ({}), setState: vi.fn() }),
         }));
         vi.doMock("../../src/webviews/react/commit-panel/components/CommitTab", () => ({
             CommitTab: (props: {
@@ -200,7 +230,10 @@ describe("app logic coverage", () => {
             commitPush?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         });
 
-        expect(dispatch).toHaveBeenCalledWith({ type: "SET_COMMIT_MESSAGE", message: "next message" });
+        expect(dispatch).toHaveBeenCalledWith({
+            type: "SET_COMMIT_MESSAGE",
+            message: "next message",
+        });
         expect(dispatch).toHaveBeenCalledWith({ type: "SET_AMEND", isAmend: true });
         expect(postMessage).toHaveBeenCalledWith({ type: "getLastCommitMessage" });
         expect(postMessage).toHaveBeenCalledWith(
@@ -217,7 +250,15 @@ describe("app logic coverage", () => {
         vi.doMock("../../src/webviews/react/commit-panel/hooks/useExtensionMessages", () => ({
             useExtensionMessages: () => [
                 {
-                    files: [{ path: "src/a.ts", status: "M", staged: false, additions: 1, deletions: 0 }],
+                    files: [
+                        {
+                            path: "src/a.ts",
+                            status: "M",
+                            staged: false,
+                            additions: 1,
+                            deletions: 0,
+                        },
+                    ],
                     stashes: [],
                     shelfFiles: [],
                     selectedShelfIndex: null,
@@ -239,7 +280,7 @@ describe("app logic coverage", () => {
             }),
         }));
         vi.doMock("../../src/webviews/react/commit-panel/hooks/useVsCodeApi", () => ({
-            getVsCodeApi: () => ({ postMessage }),
+            getVsCodeApi: () => ({ postMessage, getState: () => ({}), setState: vi.fn() }),
         }));
         vi.doMock("../../src/webviews/react/commit-panel/components/CommitTab", () => ({
             CommitTab: (props: { onCommit: () => void }) => (
@@ -264,7 +305,9 @@ describe("app logic coverage", () => {
         await flush();
 
         act(() => {
-            document.getElementById("commit")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            document
+                .getElementById("commit")
+                ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         });
 
         expect(postMessage).toHaveBeenCalledWith(
@@ -277,5 +320,4 @@ describe("app logic coverage", () => {
             }),
         );
     });
-
 });

@@ -20,14 +20,14 @@ function App(): React.ReactElement {
 
     const vscode = getVsCodeApi();
     const [groupByDir, setGroupByDir] = useState<boolean>(() => {
-        const saved = vscode.getState();
+        const saved = vscode.getState?.();
         return typeof saved?.groupByDir === "boolean" ? saved.groupByDir : true;
     });
 
     useEffect(() => {
-        const prev = vscode.getState() ?? {};
+        const prev = vscode.getState?.() ?? {};
         vscode.setState({ ...prev, groupByDir });
-    }, [groupByDir]);
+    }, [groupByDir, vscode]);
 
     const handleMessageChange = useCallback(
         (message: string) => {
