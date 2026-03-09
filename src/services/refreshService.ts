@@ -49,20 +49,26 @@ export class RefreshService implements vscode.Disposable {
 
     debouncedLightRefresh(): void {
         if (this.lightTimer) clearTimeout(this.lightTimer);
-        this.lightTimer = setTimeout(async () => {
-            await this.deps.commitPanel.refresh();
+        this.lightTimer = setTimeout(() => {
+            void this.deps.commitPanel.refresh().catch((err) => {
+                console.error("[IntelliGit] Light refresh failed:", err);
+            });
         }, 300);
     }
 
     debouncedFullRefresh(): void {
         if (this.fullTimer) clearTimeout(this.fullTimer);
-        this.fullTimer = setTimeout(async () => {
-            const branches = await this.deps.gitOps.getBranches();
-            this.deps.onBranchesUpdated(branches);
-            this.deps.commitGraph.setBranches(branches);
-            await this.deps.commitGraph.refresh();
-            await this.deps.commitPanel.refresh();
-            await this.refreshMergeConflicts();
+        this.fullTimer = setTimeout(() => {
+            void (async () => {
+                const branches = await this.deps.gitOps.getBranches();
+                this.deps.onBranchesUpdated(branches);
+                this.deps.commitGraph.setBranches(branches);
+                await this.deps.commitGraph.refresh();
+                await this.deps.commitPanel.refresh();
+                await this.refreshMergeConflicts();
+            })().catch((err) => {
+                console.error("[IntelliGit] Full refresh failed:", err);
+            });
         }, 500);
     }
 
@@ -80,8 +86,26 @@ export class RefreshService implements vscode.Disposable {
         this.registerGitDirWatchers();
     }
 
+    private resolveGitDir(): string {
+        const dotGit = path.join(this.repoRoot, ".git");
+        try {
+            const stat = fs.statSync(dotGit);
+            if (stat.isFile()) {
+                const content = fs.readFileSync(dotGit, "utf8").trim();
+                const match = content.match(/^gitdir:\s*(.+)$/);
+                if (match) {
+                    const gitDir = match[1];
+                    return path.isAbsolute(gitDir) ? gitDir : path.resolve(this.repoRoot, gitDir);
+                }
+            }
+        } catch {
+            // Fall through to default
+        }
+        return dotGit;
+    }
+
     private registerGitDirWatchers(): void {
-        const gitDir = path.join(this.repoRoot, ".git");
+        const gitDir = this.resolveGitDir();
         const gitStateFiles = new Set([
             "HEAD",
             "FETCH_HEAD",

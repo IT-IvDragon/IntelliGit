@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
-- Added 65+ unit tests for extracted modules: `gitHelpers`, `wordDiff`, `mergeState` (total: 131 to 200).
+- Added 65+ unit tests for extracted modules: `gitHelpers`, `wordDiff`, `mergeState` (increasing the total from ~131 to ~196).
 
 ## [0.5.5] - 2026-03-09
 

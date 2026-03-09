@@ -59,7 +59,6 @@ export function tokenSimilarityRatio(a: string, b: string): number {
     const aNorm = normalizeLineForWordDiff(a);
     const bNorm = normalizeLineForWordDiff(b);
     if (aNorm === bNorm) return 0.98;
-    if (!aNorm && !bNorm) return 1;
     if (!aNorm || !bNorm) return 0;
 
     const aTokens = tokenizeWordDiff(aNorm);

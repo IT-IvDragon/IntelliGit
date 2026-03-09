@@ -349,7 +349,9 @@ export function ConflictSection({
             <div className="hunk-header">
                 <div className="hunk-header-left">
                     <span className={`hunk-badge hunk-kind-${segment.changeKind}`}>
-                        {trueConflictOrdinal ? `#${trueConflictOrdinal}` : `#${conflictOrdinal}`}
+                        {trueConflictOrdinal !== undefined
+                            ? `#${trueConflictOrdinal}`
+                            : `#${conflictOrdinal}`}
                     </span>
                     <span className="hunk-kind-label">{kindLabel}</span>
                     {showDetails ? (
@@ -424,6 +426,7 @@ export function ConflictSection({
                             className="action-btn discard-btn"
                             onClick={() => onResolve(segment.id, "theirs")}
                             title="Ignore left block"
+                            aria-label="Ignore left block"
                         >
                             <IconClose />
                         </button>
@@ -431,6 +434,8 @@ export function ConflictSection({
                             className={`action-btn accept-btn ${isOurs ? "active" : ""}`}
                             onClick={() => onResolve(segment.id, "ours")}
                             title="Accept left block"
+                            aria-label="Accept left block"
+                            aria-current={isOurs ? "true" : undefined}
                         >
                             <IconArrowRight />
                         </button>
@@ -456,6 +461,8 @@ export function ConflictSection({
                             className={`action-btn accept-btn ${isTheirs ? "active" : ""}`}
                             onClick={() => onResolve(segment.id, "theirs")}
                             title="Accept right block"
+                            aria-label="Accept right block"
+                            aria-current={isTheirs ? "true" : undefined}
                         >
                             <IconArrowLeft />
                         </button>
@@ -463,6 +470,7 @@ export function ConflictSection({
                             className="action-btn discard-btn"
                             onClick={() => onResolve(segment.id, "ours")}
                             title="Ignore right block"
+                            aria-label="Ignore right block"
                         >
                             <IconClose />
                         </button>
@@ -519,6 +527,8 @@ export function OverviewRail({
                             height: `${marker.heightPct}%`,
                         }}
                         title={`Jump to hunk #${marker.id + 1}`}
+                        aria-label={`Jump to hunk #${marker.id + 1}`}
+                        aria-current={activeConflictId === marker.id ? "true" : undefined}
                         onClick={() => onJump(marker.id)}
                     />
                 ))}

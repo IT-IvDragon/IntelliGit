@@ -11,6 +11,7 @@ import { GitOps } from "../git/operations";
 import { getErrorMessage } from "../utils/errors";
 import { runWithNotificationProgress } from "../utils/notifications";
 import { getCommitParentHashes, pickMainlineParent, buildCommitFilePatch } from "./gitHelpers";
+import { assertRepoRelativePath } from "../utils/fileOps";
 
 export function normalizeGitPath(fsPathValue: string): string {
     return fsPathValue.split(path.sep).join("/");
@@ -94,6 +95,7 @@ export async function openCommitFileDiff(
     gitOps: GitOps,
     executor: GitExecutor,
 ): Promise<void> {
+    const safePath = assertRepoRelativePath(filePath);
     const parents = await getCommitParentHashes(commitHash, executor);
 
     let parentRef: string;
@@ -117,21 +119,21 @@ export async function openCommitFileDiff(
 
     let leftContent: string;
     try {
-        leftContent = await gitOps.getFileContentAtRef(filePath, parentRef);
+        leftContent = await gitOps.getFileContentAtRef(safePath, parentRef);
     } catch {
         leftContent = "";
     }
 
     let rightContent: string;
     try {
-        rightContent = await gitOps.getFileContentAtRef(filePath, commitHash);
+        rightContent = await gitOps.getFileContentAtRef(safePath, commitHash);
     } catch {
         rightContent = "";
     }
 
     // Detect language from the working tree file if it exists on disk.
     let language: string | undefined;
-    const diskPath = path.join(repoRoot, filePath);
+    const diskPath = path.join(repoRoot, safePath);
     try {
         const diskDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(diskPath));
         language = diskDoc.languageId;
@@ -146,9 +148,10 @@ export async function openCommitFileDiff(
     });
     const shortParent = parentDisplayHash.slice(0, 8);
     const shortCommit = commitHash.slice(0, 8);
-    const title = `${filePath} (${shortParent} ↔ ${shortCommit})`;
+    const title = `${safePath} (${shortParent} ↔ ${shortCommit})`;
     await vscode.commands.executeCommand("vscode.diff", leftDoc.uri, rightDoc.uri, title);
     await closeTemporaryDiffSourceTab(leftDoc.uri);
+    await closeTemporaryDiffSourceTab(rightDoc.uri);
 }
 
 export async function applyPatchTextToRepo(
@@ -310,14 +313,9 @@ export async function compareCommitInfoFileWithLocal(
     const fileCtx = getCommitInfoFileContext(ctx);
     if (!fileCtx) return;
     try {
-        const fileUri = vscode.Uri.file(path.join(repoRoot, fileCtx.filePath));
-        await openDiffAgainstGitRef(
-            fileUri,
-            fileCtx.filePath,
-            fileCtx.commitHash,
-            "revision",
-            gitOps,
-        );
+        const safePath = assertRepoRelativePath(fileCtx.filePath);
+        const fileUri = vscode.Uri.file(path.join(repoRoot, safePath));
+        await openDiffAgainstGitRef(fileUri, safePath, fileCtx.commitHash, "revision", gitOps);
     } catch (error) {
         const message = getErrorMessage(error);
         vscode.window.showErrorMessage(`Compare with local failed: ${message}`);

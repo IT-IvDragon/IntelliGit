@@ -165,7 +165,6 @@ async function readMergedFileWithRetry(
             return text;
         } catch (readErr) {
             lastReadError = readErr;
-            if (attempt === delaysMs.length - 1) throw readErr;
         }
     }
 
@@ -189,8 +188,14 @@ export async function openJetBrainsMergeToolForFile(
             "Open VS Code Merge Editor",
         );
         if (action === "Open VS Code Merge Editor") {
-            await openBuiltInMergeEditorForFile(filePath);
-            return true;
+            try {
+                await openBuiltInMergeEditorForFile(filePath);
+                return true;
+            } catch (error) {
+                const msg = getErrorMessage(error);
+                vscode.window.showErrorMessage(`Failed to open VS Code merge editor: ${msg}`);
+                return false;
+            }
         }
         if (action !== "Configure") return false;
         const configured = await promptForJetBrainsMergeToolPath();

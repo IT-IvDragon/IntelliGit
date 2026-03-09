@@ -196,7 +196,11 @@ function App(): React.ReactElement {
                     setCommitFolderIconsByName(undefined);
                     break;
                 case "loadError":
+                    if (!loadingMore.current) {
+                        setCommits([]);
+                    }
                     loadingMore.current = false;
+                    setHasMore(false);
                     console.error("[IntelliGit] Load error:", data.message);
                     break;
                 case "error":

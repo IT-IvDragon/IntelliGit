@@ -2,6 +2,7 @@
 // Provides branch resolution, hash validation, and commit utilities
 // used by multiple command modules.
 
+import { spawnSync } from "child_process";
 import * as vscode from "vscode";
 import { GitExecutor } from "../git/executor";
 import { GitOps } from "../git/operations";
@@ -20,7 +21,16 @@ export function isValidGitHash(value: string): boolean {
 }
 
 export function isValidBranchName(value: string): boolean {
-    return value.length > 0 && !value.startsWith("-") && /^[A-Za-z0-9._/-]+$/.test(value);
+    if (!value) return false;
+    try {
+        const result = spawnSync("git", ["check-ref-format", "--branch", value], {
+            encoding: "utf8",
+            timeout: 5000,
+        });
+        return result.status === 0;
+    } catch {
+        return false;
+    }
 }
 
 export function isHashMatch(a: string, b: string): boolean {

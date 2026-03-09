@@ -108,8 +108,26 @@ const gitOpsState = {
             behind: 0,
         },
         {
+            name: "origin/main",
+            hash: "feed1234",
+            isRemote: true,
+            isCurrent: false,
+            remote: "origin",
+            ahead: 0,
+            behind: 0,
+        },
+        {
             name: "origin/feature-remote",
             hash: "a1b2c3d4",
+            isRemote: true,
+            isCurrent: false,
+            remote: "origin",
+            ahead: 0,
+            behind: 0,
+        },
+        {
+            name: "origin/force-fail",
+            hash: "abc123",
             isRemote: true,
             isCurrent: false,
             remote: "origin",
@@ -142,6 +160,7 @@ const gitOpsState = {
     acceptConflictSide: vi.fn(async () => undefined),
     getConflictFileVersions: vi.fn(async () => ({ base: "", ours: "", theirs: "" })),
     stageFile: vi.fn(async () => undefined),
+    push: vi.fn(async () => undefined),
 };
 
 const deleteFileWithFallback = vi.fn(async () => true);
@@ -370,6 +389,7 @@ vi.mock("../../src/git/operations", async (importOriginal) => {
             acceptConflictSide = gitOpsState.acceptConflictSide;
             getConflictFileVersions = gitOpsState.getConflictFileVersions;
             stageFile = gitOpsState.stageFile;
+            push = gitOpsState.push;
         },
     };
 });
@@ -447,8 +467,26 @@ describe("extension integration", () => {
                 behind: 0,
             },
             {
+                name: "origin/main",
+                hash: "feed1234",
+                isRemote: true,
+                isCurrent: false,
+                remote: "origin",
+                ahead: 0,
+                behind: 0,
+            },
+            {
                 name: "origin/feature-remote",
                 hash: "a1b2c3d4",
+                isRemote: true,
+                isCurrent: false,
+                remote: "origin",
+                ahead: 0,
+                behind: 0,
+            },
+            {
+                name: "origin/force-fail",
+                hash: "abc123",
                 isRemote: true,
                 isCurrent: false,
                 remote: "origin",
@@ -1154,7 +1192,8 @@ describe("extension integration", () => {
             if (args[0] === "rebase" && args[1] === "fail-rebase") throw new Error("rebase boom");
             if (args[0] === "merge" && args[1] === "fail-merge") throw new Error("merge boom");
             if (args[0] === "fetch") throw new Error("fetch boom");
-            if (args[0] === "push" && args[2] === "force-fail") throw new Error("push boom");
+            if (args[0] === "push" && args[2]?.startsWith("force-fail"))
+                throw new Error("push boom");
             if (args[0] === "branch" && args[1] === "-m" && args[2] === "fail-rename") {
                 throw new Error("rename boom");
             }
@@ -1194,6 +1233,24 @@ describe("extension integration", () => {
                 hash: "feed1234",
                 isRemote: false,
                 isCurrent: true,
+                ahead: 0,
+                behind: 0,
+            },
+            {
+                name: "origin/main",
+                hash: "feed1234",
+                isRemote: true,
+                isCurrent: false,
+                remote: "origin",
+                ahead: 0,
+                behind: 0,
+            },
+            {
+                name: "origin/force-fail",
+                hash: "abc123",
+                isRemote: true,
+                isCurrent: false,
+                remote: "origin",
                 ahead: 0,
                 behind: 0,
             },

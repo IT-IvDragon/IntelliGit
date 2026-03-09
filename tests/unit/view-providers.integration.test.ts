@@ -499,7 +499,10 @@ describe("view providers integration", () => {
 
         await webview.send({ type: "shelfSelect", index: Number.NaN });
         expect(postMessageSpy).toHaveBeenCalledWith(
-            expect.objectContaining({ selectedShelfIndex: null }),
+            expect.objectContaining({
+                type: "error",
+                message: expect.stringContaining("Expected number"),
+            }),
         );
 
         await webview.send({ type: "showShelfDiff", index: 0, path: "src/a.ts" });

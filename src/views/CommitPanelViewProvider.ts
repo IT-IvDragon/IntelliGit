@@ -295,9 +295,10 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
 
             case "shelveSave": {
                 const name = typeof msg.name === "string" ? msg.name : "Shelved changes";
-                const paths = Array.isArray(msg.paths)
-                    ? this.assertStringArray(msg.paths, "paths")
-                    : undefined;
+                let paths: string[] | undefined;
+                if (msg.paths !== undefined) {
+                    paths = this.assertStringArray(msg.paths, "paths");
+                }
                 await this.gitOps.shelveSave(paths, name);
                 vscode.window.showInformationMessage("Changes shelved.");
                 await this.refreshData();
@@ -335,8 +336,7 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
             }
 
             case "shelfSelect": {
-                const raw = typeof msg.index === "number" ? msg.index : NaN;
-                this.selectedShelfIndex = Number.isFinite(raw) ? raw : null;
+                this.selectedShelfIndex = this.assertNumber(msg.index, "index");
                 if (this.selectedShelfIndex !== null) {
                     this.shelfFiles = await this.iconTheme.decorateWorkingFiles(
                         await this.gitOps.getShelvedFiles(this.selectedShelfIndex),
@@ -462,5 +462,6 @@ export class CommitPanelViewProvider implements vscode.WebviewViewProvider {
 
     private disposeThemeChangeDisposables(): void {
         disposeAll(this.themeChangeDisposables);
+        this.themeChangeDisposables = [];
     }
 }

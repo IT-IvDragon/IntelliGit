@@ -159,12 +159,14 @@ export async function handleCommitContextAction(params: {
             let currentBranch = currentBranches.find(
                 (branch) => !branch.isRemote && branch.name === checkedOutBranchName,
             );
+            let branchesSnapshot = currentBranches;
             if (!currentBranch) {
                 // Stale cache — refresh branch metadata and retry
                 const freshBranches = await gitOps.getBranches();
                 currentBranch = freshBranches.find(
                     (branch) => !branch.isRemote && branch.name === checkedOutBranchName,
                 );
+                branchesSnapshot = freshBranches;
             }
             if (!currentBranch) {
                 vscode.window.showErrorMessage(
@@ -173,7 +175,7 @@ export async function handleCommitContextAction(params: {
                 return;
             }
 
-            let target = resolveTrackedRemoteBranch(currentBranch, currentBranches);
+            let target = resolveTrackedRemoteBranch(currentBranch, branchesSnapshot);
             let setUpstream = false;
             if (!target) {
                 const remote = await resolveRemoteName(currentBranch, executor);
@@ -262,6 +264,14 @@ export async function handleCommitContextAction(params: {
                 vscode.window.showErrorMessage("Undo Commit is not available for merge commits.");
                 return;
             }
+            try {
+                await executor.run(["merge-base", "--is-ancestor", validatedHash, "HEAD"]);
+            } catch {
+                vscode.window.showErrorMessage(
+                    `Commit ${short} is not in the current branch history.`,
+                );
+                return;
+            }
             const undoCount = await getUndoCommitCount(validatedHash, executor);
             const confirm = await vscode.window.showWarningMessage(
                 `Undo ${undoCount} commit(s) up to ${short} (soft reset)?`,
@@ -322,6 +332,14 @@ export async function handleCommitContextAction(params: {
             }
             if (await isMergeCommitHash(validatedHash, executor)) {
                 vscode.window.showErrorMessage("Drop Commit is not available for merge commits.");
+                return;
+            }
+            try {
+                await executor.run(["merge-base", "--is-ancestor", validatedHash, "HEAD"]);
+            } catch {
+                vscode.window.showErrorMessage(
+                    `Commit ${short} is not in the current branch history.`,
+                );
                 return;
             }
             const confirm = await vscode.window.showWarningMessage(
