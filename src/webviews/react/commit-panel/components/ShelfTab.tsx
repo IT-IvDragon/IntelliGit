@@ -1,7 +1,7 @@
 // Shelf tab with selectable shelved entries, changed-file preview, and
 // bottom Apply/Pop/Delete actions.
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Flex, Box, Button } from "@chakra-ui/react";
 import { SYSTEM_FONT_STACK } from "../../../../utils/constants";
 import { FileTypeIcon } from "./FileTypeIcon";
@@ -89,6 +89,34 @@ export function ShelfTab({
     useEffect(() => {
         setExpandedDirs(new Set(collectAllDirPaths(tree)));
     }, [tree]);
+
+    const [fileTreeHeight, setFileTreeHeight] = useState(150);
+    const fileTreeHeightRef = useRef(fileTreeHeight);
+    useEffect(() => {
+        fileTreeHeightRef.current = fileTreeHeight;
+    }, [fileTreeHeight]);
+
+    const handleFileTreeDragStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startH = fileTreeHeightRef.current;
+
+        const onMouseMove = (ev: MouseEvent) => {
+            const delta = ev.clientY - startY;
+            setFileTreeHeight(Math.max(60, startH + delta));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+        document.body.style.cursor = "row-resize";
+        document.body.style.userSelect = "none";
+    }, []);
 
     return (
         <Flex direction="column" flex={1} overflow="hidden">
@@ -184,39 +212,49 @@ export function ShelfTab({
                                         </Box>
                                     )}
                                 </Flex>
-                                {hasFiles &&
-                                    (shelfFiles.length > 0 ? (
-                                        <Box
-                                            borderBottom="1px solid var(--vscode-panel-border)"
-                                            pb="2px"
-                                        >
-                                            <ShelfFileTree
-                                                entries={tree}
-                                                expandedDirs={expandedDirs}
-                                                folderIcon={folderIcon}
-                                                folderExpandedIcon={folderExpandedIcon}
-                                                folderIconsByName={folderIconsByName}
-                                                onToggleDir={toggleDir}
-                                                onFileClick={(path) =>
-                                                    vscode.postMessage({
-                                                        type: "showShelfDiff",
-                                                        index: stash.index,
-                                                        path,
-                                                    })
-                                                }
-                                                depth={1}
-                                            />
+                                {hasFiles && (
+                                    <>
+                                        <Box h={`${fileTreeHeight}px`} overflowY="auto">
+                                            {shelfFiles.length > 0 ? (
+                                                <ShelfFileTree
+                                                    entries={tree}
+                                                    expandedDirs={expandedDirs}
+                                                    folderIcon={folderIcon}
+                                                    folderExpandedIcon={folderExpandedIcon}
+                                                    folderIconsByName={folderIconsByName}
+                                                    onToggleDir={toggleDir}
+                                                    onFileClick={(path) =>
+                                                        vscode.postMessage({
+                                                            type: "showShelfDiff",
+                                                            index: stash.index,
+                                                            path,
+                                                        })
+                                                    }
+                                                    depth={1}
+                                                />
+                                            ) : (
+                                                <Box
+                                                    pl="28px"
+                                                    py="2px"
+                                                    fontSize="12px"
+                                                    color="var(--vscode-descriptionForeground)"
+                                                >
+                                                    No files in this shelved change.
+                                                </Box>
+                                            )}
                                         </Box>
-                                    ) : (
                                         <Box
-                                            pl="28px"
-                                            py="2px"
-                                            fontSize="12px"
-                                            color="var(--vscode-descriptionForeground)"
-                                        >
-                                            No files in this shelved change.
-                                        </Box>
-                                    ))}
+                                            h="4px"
+                                            flexShrink={0}
+                                            cursor="row-resize"
+                                            bg="var(--vscode-panel-border)"
+                                            onMouseDown={handleFileTreeDragStart}
+                                            _hover={{
+                                                bg: "var(--vscode-focusBorder, #007acc)",
+                                            }}
+                                        />
+                                    </>
+                                )}
                             </React.Fragment>
                         );
                     })
