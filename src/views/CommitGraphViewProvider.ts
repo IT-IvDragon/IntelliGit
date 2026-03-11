@@ -207,14 +207,15 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-            const commits = await this.gitOps.getLog(
-                this.PAGE_SIZE,
-                this.currentBranch ?? undefined,
-                this.filterText || undefined,
-                0,
-            );
-            if (requestId !== this.requestSeq) return;
-            const unpushedHashes = await this.gitOps.getUnpushedCommitHashes();
+            const [commits, unpushedHashes] = await Promise.all([
+                this.gitOps.getLog(
+                    this.PAGE_SIZE,
+                    this.currentBranch ?? undefined,
+                    this.filterText || undefined,
+                    0,
+                ),
+                this.gitOps.getUnpushedCommitHashes(),
+            ]);
             if (requestId !== this.requestSeq) return;
             this.offset = commits.length;
             this.postToWebview({
@@ -237,14 +238,15 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
         this.loadingMore = true;
         const requestId = ++this.requestSeq;
         try {
-            const commits = await this.gitOps.getLog(
-                this.PAGE_SIZE,
-                this.currentBranch ?? undefined,
-                this.filterText || undefined,
-                this.offset,
-            );
-            if (requestId !== this.requestSeq) return;
-            const unpushedHashes = await this.gitOps.getUnpushedCommitHashes();
+            const [commits, unpushedHashes] = await Promise.all([
+                this.gitOps.getLog(
+                    this.PAGE_SIZE,
+                    this.currentBranch ?? undefined,
+                    this.filterText || undefined,
+                    this.offset,
+                ),
+                this.gitOps.getUnpushedCommitHashes(),
+            ]);
             if (requestId !== this.requestSeq) return;
             this.offset += commits.length;
             this.postToWebview({

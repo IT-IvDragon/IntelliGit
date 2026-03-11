@@ -19,7 +19,10 @@ export function assertRepoRelativePath(filePath: string): string {
     if (segments.some((seg) => seg === "..")) {
         throw new Error(`Rejected path escaping repo root: ${filePath}`);
     }
-    return normalized;
+    // Always return forward-slash paths for git compatibility.
+    // path.normalize converts '/' to '\' on Windows, which breaks
+    // git object lookups like "git show HEAD:src\file.ts".
+    return normalized.split(path.sep).join("/");
 }
 
 /**

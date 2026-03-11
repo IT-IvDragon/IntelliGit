@@ -79,6 +79,13 @@ export function alignCompareLinesForWordDiff(lines: string[], compareLines: stri
 
     const m = lines.length;
     const n = compareLines.length;
+
+    // Guard against unbounded O(m*n) DP allocation for very large diffs.
+    const MAX_ALIGN_CELLS = 50_000;
+    if (m * n > MAX_ALIGN_CELLS) {
+        return lines.map((_, i) => (i < compareLines.length ? compareLines[i] : ""));
+    }
+
     const gapPenalty = -0.8;
     const pairScoreCache = new Map<string, number>();
     const scorePair = (i: number, j: number): number => {

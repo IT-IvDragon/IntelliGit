@@ -35,7 +35,11 @@ export class RefreshService implements vscode.Disposable {
     async refreshMergeConflicts(): Promise<void> {
         const count = await this.deps.mergeConflicts.refresh();
         this.deps.mergeConflictsView.description = count > 0 ? `${count}` : "";
-        vscode.commands.executeCommand("setContext", "intelligit.hasMergeConflicts", count > 0);
+        await vscode.commands.executeCommand(
+            "setContext",
+            "intelligit.hasMergeConflicts",
+            count > 0,
+        );
     }
 
     async refreshConflictUi(): Promise<void> {

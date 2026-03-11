@@ -90,8 +90,13 @@ export async function handleCommitContextAction(params: {
                 mainlineParent.kind === "notMerge"
                     ? ["cherry-pick", validatedHash]
                     : ["cherry-pick", "-m", String(mainlineParent.parentNumber), validatedHash];
-            await executor.run(args);
-            vscode.window.showInformationMessage(`Cherry-picked ${short}.`);
+            try {
+                await executor.run(args);
+                vscode.window.showInformationMessage(`Cherry-picked ${short}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Cherry-pick failed: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -102,8 +107,13 @@ export async function handleCommitContextAction(params: {
                 "Checkout",
             );
             if (confirm !== "Checkout") return;
-            await executor.run(["checkout", validatedHash]);
-            vscode.window.showInformationMessage(`Checked out revision ${short}.`);
+            try {
+                await executor.run(["checkout", validatedHash]);
+                vscode.window.showInformationMessage(`Checked out revision ${short}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Checkout failed: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -114,8 +124,13 @@ export async function handleCommitContextAction(params: {
                 "Reset",
             );
             if (confirm !== "Reset") return;
-            await executor.run(["reset", "--hard", validatedHash]);
-            vscode.window.showInformationMessage(`Reset current branch to ${short}.`);
+            try {
+                await executor.run(["reset", "--hard", validatedHash]);
+                vscode.window.showInformationMessage(`Reset current branch to ${short}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Reset failed: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -138,8 +153,13 @@ export async function handleCommitContextAction(params: {
                           "--no-edit",
                           validatedHash,
                       ];
-            await executor.run(args);
-            vscode.window.showInformationMessage(`Reverted ${short}.`);
+            try {
+                await executor.run(args);
+                vscode.window.showInformationMessage(`Reverted ${short}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Revert failed: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -243,8 +263,13 @@ export async function handleCommitContextAction(params: {
                 );
                 return;
             }
-            await executor.run(["branch", branchName, validatedHash]);
-            vscode.window.showInformationMessage(`Created branch ${branchName} at ${short}.`);
+            try {
+                await executor.run(["branch", branchName, validatedHash]);
+                vscode.window.showInformationMessage(`Created branch ${branchName} at ${short}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Failed to create branch: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -260,8 +285,13 @@ export async function handleCommitContextAction(params: {
                 );
                 return;
             }
-            await executor.run(["tag", tagName, validatedHash]);
-            vscode.window.showInformationMessage(`Created tag ${tagName}.`);
+            try {
+                await executor.run(["tag", tagName, validatedHash]);
+                vscode.window.showInformationMessage(`Created tag ${tagName}.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Failed to create tag: ${message}`);
+            }
             await refreshAll();
             return;
         }
@@ -377,8 +407,21 @@ export async function handleCommitContextAction(params: {
                 "Drop",
             );
             if (confirm !== "Drop") return;
-            await executor.run(["rebase", "--onto", `${validatedHash}^`, validatedHash, "HEAD"]);
-            vscode.window.showInformationMessage(`Dropped ${short} from history.`);
+            try {
+                await executor.run([
+                    "rebase",
+                    "--onto",
+                    `${validatedHash}^`,
+                    validatedHash,
+                    "HEAD",
+                ]);
+                vscode.window.showInformationMessage(`Dropped ${short} from history.`);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(
+                    `Failed to drop commit: ${message}. Run 'git rebase --abort' to recover.`,
+                );
+            }
             await refreshAll();
             return;
         }

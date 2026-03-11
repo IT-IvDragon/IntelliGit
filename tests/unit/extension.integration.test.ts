@@ -1052,7 +1052,7 @@ describe("extension integration", () => {
                 consoleErrorSpy.mockRestore();
             }
             expect(showErrorMessage).toHaveBeenCalledWith(
-                expect.stringContaining("Commit action failed: reset failed"),
+                expect.stringContaining("Reset failed: reset failed"),
             );
 
             latestCommitGraphProvider!.emitBranchAction({
