@@ -12,6 +12,7 @@ import type {
     CommitGraphInbound,
 } from "../webviews/react/commitGraphTypes";
 import { IconThemeService } from "./shared";
+import { registerThemeChangeListeners, disposeAll } from "./shared/themeListeners";
 import { buildWebviewShellHtml } from "./webviewHtml";
 
 export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
@@ -206,12 +207,15 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-            const commits = await this.gitOps.getLog(
-                this.PAGE_SIZE,
-                this.currentBranch ?? undefined,
-                this.filterText || undefined,
-                0,
-            );
+            const [commits, unpushedHashes] = await Promise.all([
+                this.gitOps.getLog(
+                    this.PAGE_SIZE,
+                    this.currentBranch ?? undefined,
+                    this.filterText || undefined,
+                    0,
+                ),
+                this.gitOps.getUnpushedCommitHashes(),
+            ]);
             if (requestId !== this.requestSeq) return;
             this.offset = commits.length;
             this.postToWebview({
@@ -219,11 +223,13 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
                 commits,
                 hasMore: commits.length >= this.PAGE_SIZE,
                 append: false,
-                unpushedHashes: await this.gitOps.getUnpushedCommitHashes(),
+                unpushedHashes,
             });
         } catch (err) {
+            if (requestId !== this.requestSeq) return;
             const message = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Git log error: ${message}`);
+            this.postToWebview({ type: "loadError", message });
         }
     }
 
@@ -232,27 +238,33 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
         this.loadingMore = true;
         const requestId = ++this.requestSeq;
         try {
-            const commits = await this.gitOps.getLog(
-                this.PAGE_SIZE,
-                this.currentBranch ?? undefined,
-                this.filterText || undefined,
-                this.offset,
-            );
+            const [commits, unpushedHashes] = await Promise.all([
+                this.gitOps.getLog(
+                    this.PAGE_SIZE,
+                    this.currentBranch ?? undefined,
+                    this.filterText || undefined,
+                    this.offset,
+                ),
+                this.gitOps.getUnpushedCommitHashes(),
+            ]);
             if (requestId !== this.requestSeq) return;
-            const newCommits = commits;
-            this.offset += newCommits.length;
+            this.offset += commits.length;
             this.postToWebview({
                 type: "loadCommits",
-                commits: newCommits,
-                hasMore: newCommits.length >= this.PAGE_SIZE,
+                commits,
+                hasMore: commits.length >= this.PAGE_SIZE,
                 append: true,
-                unpushedHashes: await this.gitOps.getUnpushedCommitHashes(),
+                unpushedHashes,
             });
         } catch (err) {
+            if (requestId !== this.requestSeq) return;
             const message = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Git log error: ${message}`);
+            this.postToWebview({ type: "loadError", message });
         } finally {
-            this.loadingMore = false;
+            if (requestId === this.requestSeq) {
+                this.loadingMore = false;
+            }
         }
     }
 
@@ -333,27 +345,11 @@ export class CommitGraphViewProvider implements vscode.WebviewViewProvider {
 
     private registerThemeChangeListeners(): void {
         this.themeChangeDisposables.push(
-            vscode.window.onDidChangeActiveColorTheme(() => {
-                this.refreshThemeDataWithErrorHandling();
-            }),
-        );
-
-        this.themeChangeDisposables.push(
-            vscode.workspace.onDidChangeConfiguration((event) => {
-                if (
-                    event.affectsConfiguration("workbench.iconTheme") ||
-                    event.affectsConfiguration("workbench.colorTheme")
-                ) {
-                    this.refreshThemeDataWithErrorHandling();
-                }
-            }),
+            ...registerThemeChangeListeners(() => this.refreshThemeDataWithErrorHandling()),
         );
     }
 
     private disposeThemeChangeDisposables(): void {
-        for (const disposable of this.themeChangeDisposables) {
-            disposable.dispose();
-        }
-        this.themeChangeDisposables = [];
+        disposeAll(this.themeChangeDisposables);
     }
 }
