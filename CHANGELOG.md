@@ -5,6 +5,13 @@ All notable changes to IntelliGit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-03-12
+
+### Fixed
+
+- Release workflow reruns now check whether the current extension version is already published to the VS Code Marketplace or Open VSX and skip that target instead of failing on duplicate publish attempts.
+- GitHub release publishing is now idempotent for reruns: existing releases are reused and the VSIX asset is uploaded with overwrite support so partially failed release runs can be resumed safely.
+
 ## [0.6.0] - 2026-03-09
 
 ### Added
