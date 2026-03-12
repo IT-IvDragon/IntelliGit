@@ -115,6 +115,11 @@ describe("buildResultContent", () => {
         data.hasTrailingNewline = false;
         expect(buildResultContent(data, {})).toBe("only");
     });
+
+    it("preserves a single blank line when trailing newline is present", () => {
+        const data = makeData([{ type: "common", lines: [""] }]);
+        expect(buildResultContent(data, {})).toBe("\n");
+    });
 });
 
 describe("allResolved", () => {

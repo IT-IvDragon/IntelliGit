@@ -66,7 +66,7 @@ export function buildResultContent(
     }
     const eol = data.eol ?? "\n";
     const joined = lines.join(eol);
-    return data.hasTrailingNewline && joined !== "" ? joined + eol : joined;
+    return data.hasTrailingNewline ? joined + eol : joined;
 }
 
 export function allResolved(
