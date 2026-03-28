@@ -1,9 +1,9 @@
 {
-    "name": "intelligit",
-    "displayName": "IntelliGit",
-    "description": "IntelliJ-style Git UI for VS Code with commit graph, commit details, shelf workflow, and file change explorer.",
-    "version": "0.6.2",
-    "publisher": "MaheshKok",
+    "name": "intelligit-chinese",
+    "displayName": "IntelliGit 中文版",
+    "description": "IntelliJ-style Git UI for VS Code with Simplified Chinese language support. Forked from IntelliGit with added zh-CN localization.",
+    "version": "0.6.2-zh",
+    "publisher": "IT-IvDragon",
     "icon": "media/intelligit-icon.png",
     "license": "MIT",
     "repository": {
@@ -24,6 +24,7 @@
         "pycharm git",
         "intelligent git",
         "intelligit",
+        "intelligit-chinese",
         "git client",
         "git gui",
         "commit graph",
@@ -34,7 +35,10 @@
         "source control",
         "log",
         "graph",
-        "scm"
+        "scm",
+        "chinese",
+        "中文",
+        "简体中文"
     ],
     "activationEvents": [
         "workspaceContains:.git",
