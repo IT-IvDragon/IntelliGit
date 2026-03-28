@@ -46,14 +46,14 @@
             "activitybar": [
                 {
                     "id": "intelligit",
-                    "title": "IntelliGit",
+                    "title": "%views.activitybar.title%",
                     "icon": "media/intelligit.svg"
                 }
             ],
             "panel": [
                 {
                     "id": "intelligitPanel",
-                    "title": "IntelliGit",
+                    "title": "%views.panel.title%",
                     "icon": "media/intelligit.svg"
                 }
             ]
@@ -62,17 +62,17 @@
             "intelligit": [
                 {
                     "id": "intelligit.commitPanel",
-                    "name": "Commit",
+                    "name": "%views.commitPanel.name%",
                     "type": "webview"
                 },
                 {
                     "id": "intelligit.mergeConflicts",
-                    "name": "Merge Conflicts",
+                    "name": "%views.mergeConflicts.name%",
                     "when": "intelligit.hasMergeConflicts"
                 },
                 {
                     "id": "intelligit.fileCountBadge",
-                    "name": "Changes",
+                    "name": "%views.changes.name%",
                     "visibility": "hidden"
                 }
             ],
@@ -87,173 +87,173 @@
         "commands": [
             {
                 "command": "intelligit.showGitLog",
-                "title": "Show Git Log",
+                "title": "%command.showGitLog.title%",
                 "category": "IntelliGit",
                 "icon": "$(git-commit)"
             },
             {
                 "command": "intelligit.refresh",
-                "title": "Refresh",
+                "title": "%command.refresh.title%",
                 "category": "IntelliGit",
                 "icon": "$(refresh)"
             },
             {
                 "command": "intelligit.filterByBranch",
-                "title": "Filter by Branch",
+                "title": "%command.filterByBranch.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.checkout",
-                "title": "Checkout",
+                "title": "%command.checkout.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.newBranchFrom",
-                "title": "New Branch from...",
+                "title": "%command.newBranchFrom.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.checkoutAndRebase",
-                "title": "Checkout and Rebase onto Current",
+                "title": "%command.checkoutAndRebase.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.rebaseCurrentOnto",
-                "title": "Rebase Current onto Selected",
+                "title": "%command.rebaseCurrentOnto.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.mergeIntoCurrent",
-                "title": "Merge into Current",
+                "title": "%command.mergeIntoCurrent.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.updateBranch",
-                "title": "Update",
+                "title": "%command.updateBranch.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.pushBranch",
-                "title": "Push",
+                "title": "%command.pushBranch.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.renameBranch",
-                "title": "Rename...",
+                "title": "%command.renameBranch.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.deleteBranch",
-                "title": "Delete",
+                "title": "%command.deleteBranch.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.fileRollback",
-                "title": "Rollback",
+                "title": "%command.fileRollback.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.fileJumpToSource",
-                "title": "Jump to Source",
+                "title": "%command.fileJumpToSource.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.fileDelete",
-                "title": "Delete",
+                "title": "%command.fileDelete.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.fileShelve",
-                "title": "Shelve Changes",
+                "title": "%command.fileShelve.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.fileShowHistory",
-                "title": "Show History",
+                "title": "%command.fileShowHistory.title%",
                 "category": "IntelliGit"
             },
             {
                 "command": "intelligit.compareWithRevision",
-                "title": "Compare with Revision",
+                "title": "%command.compareWithRevision.title%",
                 "category": "IntelliGit",
                 "icon": "$(git-commit)"
             },
             {
                 "command": "intelligit.compareWithBranch",
-                "title": "Compare with Branch",
+                "title": "%command.compareWithBranch.title%",
                 "category": "IntelliGit",
                 "icon": "$(git-branch)"
             },
             {
                 "command": "intelligit.commitFileCompareWithLocal",
-                "title": "Compare with Local",
+                "title": "%command.commitFileCompareWithLocal.title%",
                 "category": "IntelliGit",
                 "icon": "$(diff)"
             },
             {
                 "command": "intelligit.commitFileCherryPickChange",
-                "title": "Cherry-pick Selected Change",
+                "title": "%command.commitFileCherryPickChange.title%",
                 "category": "IntelliGit",
                 "icon": "$(git-commit)"
             },
             {
                 "command": "intelligit.commitFileRevertChange",
-                "title": "Revert Selected Change",
+                "title": "%command.commitFileRevertChange.title%",
                 "category": "IntelliGit",
                 "icon": "$(discard)"
             },
             {
                 "command": "intelligit.fileRefresh",
-                "title": "Refresh",
+                "title": "%command.fileRefresh.title%",
                 "category": "IntelliGit",
                 "icon": "$(refresh)"
             },
             {
                 "command": "intelligit.fileRefreshing",
-                "title": "Refreshing...",
+                "title": "%command.fileRefreshing.title%",
                 "category": "IntelliGit",
                 "icon": "$(sync~spin)",
                 "enablement": "false"
             },
             {
                 "command": "intelligit.openMergeConflict",
-                "title": "Open Merge Conflict",
+                "title": "%command.openMergeConflict.title%",
                 "category": "IntelliGit",
                 "icon": "$(go-to-file)"
             },
             {
                 "command": "intelligit.detectJetBrainsMergeTool",
-                "title": "Detect JetBrains Merge Tool",
+                "title": "%command.detectJetBrainsMergeTool.title%",
                 "category": "IntelliGit",
                 "icon": "$(search)"
             },
             {
                 "command": "intelligit.openMergeConflictInJetBrains",
-                "title": "Open in JetBrains Merge Tool",
+                "title": "%command.openMergeConflictInJetBrains.title%",
                 "category": "IntelliGit",
                 "icon": "$(link-external)"
             },
             {
                 "command": "intelligit.conflictAcceptYours",
-                "title": "Accept Yours",
+                "title": "%command.conflictAcceptYours.title%",
                 "category": "IntelliGit",
                 "icon": "$(arrow-left)"
             },
             {
                 "command": "intelligit.conflictAcceptTheirs",
-                "title": "Accept Theirs",
+                "title": "%command.conflictAcceptTheirs.title%",
                 "category": "IntelliGit",
                 "icon": "$(arrow-right)"
             },
             {
                 "command": "intelligit.mergeConflictsRefresh",
-                "title": "Refresh",
+                "title": "%command.mergeConflictsRefresh.title%",
                 "category": "IntelliGit",
                 "icon": "$(refresh)"
             },
             {
                 "command": "intelligit.openConflictSession",
-                "title": "Open Conflict Session",
+                "title": "%command.openConflictSession.title%",
                 "category": "IntelliGit",
                 "icon": "$(diff-multiple)"
             }
@@ -405,12 +405,12 @@
                 "intelligit.jetbrainsMergeTool.path": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "JetBrains IDE binary path/command (`pycharm`, `idea`, `webstorm`) or a macOS `.app` bundle path. IntelliGit auto-resolves `.app` bundles to the executable inside `Contents/MacOS`."
+                    "markdownDescription": "%config.jetbrainsMergeTool.path.description%"
                 },
                 "intelligit.jetbrainsMergeTool.preferExternal": {
                     "type": "boolean",
                     "default": true,
-                    "markdownDescription": "Prefer the external JetBrains merge tool when opening merge conflicts. Falls back to VS Code's internal merge editor if no JetBrains path is configured or launch fails."
+                    "markdownDescription": "%config.jetbrainsMergeTool.preferExternal.description%"
                 }
             }
         }

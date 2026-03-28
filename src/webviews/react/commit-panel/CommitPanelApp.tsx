@@ -13,6 +13,11 @@ import { useCheckedFiles } from "./hooks/useCheckedFiles";
 import { getVsCodeApi } from "./hooks/useVsCodeApi";
 import { useDragResize } from "./hooks/useDragResize";
 import { ThemeIconFontFaces } from "../shared/components";
+import { localize, setLocale } from "../shared/i18n";
+
+// Initialize locale from VS Code environment
+const vscodeLang = window.navigator.language || "en";
+setLocale(vscodeLang);
 
 function App(): React.ReactElement {
     const [state, dispatch] = useExtensionMessages();
@@ -143,7 +148,7 @@ function App(): React.ReactElement {
                 justifyContent="center"
             >
                 <Box color="var(--vscode-descriptionForeground)" fontSize="13px" fontStyle="italic">
-                    Coming...
+                    {localize("label.coming")}
                 </Box>
             </Box>
         </Box>

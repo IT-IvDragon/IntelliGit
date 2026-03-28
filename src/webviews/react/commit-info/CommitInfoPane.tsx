@@ -8,6 +8,7 @@ import { StatusBadge } from "../commit-panel/components/StatusBadge";
 import { useDragResize } from "../commit-panel/hooks/useDragResize";
 import { RefTypeIcon, TreeFolderIcon } from "../shared/components";
 import { getLeafName, resolveFolderIcon, splitCommitRefs } from "../shared/utils";
+import { localize, localizePlural } from "../shared/i18n";
 import {
     buildFileTree,
     collectDirPaths,
@@ -107,7 +108,7 @@ export function CommitInfoPane({
                 h="100%"
                 overflow="auto"
             >
-                No commit selected
+                {localize("label.noCommitSelected")}
             </Box>
         );
     }
@@ -133,7 +134,7 @@ export function CommitInfoPane({
                     }
                 }}
             >
-                {filesCollapsed ? "\u25B6" : "\u25BC"} Changed Files
+                {filesCollapsed ? "\u25B6" : "\u25BC"} {localize("label.changedFiles")}
             </Box>
             {!filesCollapsed && (
                 <Box flex="1 1 auto" overflowY="auto" minH="40px" py="4px">
@@ -206,9 +207,9 @@ export function CommitInfoPane({
                             setDetailCollapsed((v) => !v);
                         }
                     }}
-                >
-                    {detailCollapsed ? "\u25B6" : "\u25BC"} Commit Details
-                </Box>
+            >
+                {detailCollapsed ? "\u25B6" : "\u25BC"} {localize("label.commitDetails")}
+            </Box>
                 {!detailCollapsed && (
                     <Box px="12px" py="6px" overflowY="auto" h={`calc(100% - 28px)`}>
                         <Box fontWeight={600} whiteSpace="pre-wrap" lineHeight="1.4" mb="6px">
@@ -256,7 +257,7 @@ export function CommitInfoPane({
                                             mb="4px"
                                             opacity={0.85}
                                         >
-                                            Branches
+                                            {localize("label.branches")}
                                         </Box>
                                         <Flex direction="column" gap="3px">
                                             {branchRefs.map((ref) => (
@@ -273,7 +274,7 @@ export function CommitInfoPane({
                                             mb="4px"
                                             opacity={0.85}
                                         >
-                                            Tags
+                                            {localize("label.tags")}
                                         </Box>
                                         <Flex direction="column" gap="3px">
                                             {tagRefs.map((tag) => (
@@ -294,7 +295,7 @@ export function CommitInfoPane({
                             lineHeight="1.5"
                             mt="4px"
                         >
-                            {detail.files.length} file{detail.files.length !== 1 ? "s" : ""} changed
+                            {localizePlural("label.filesChanged", detail.files.length)}
                         </Box>
                     </Box>
                 )}
@@ -437,7 +438,7 @@ function CommitFolderRow({
                 {folder.name}
             </Box>
             <Box as="span" ml="auto" fontSize="11px" color="var(--vscode-descriptionForeground)">
-                {fileCount} file{fileCount !== 1 ? "s" : ""}
+                {localizePlural("label.filesChanged", fileCount)}
             </Box>
         </Flex>
     );

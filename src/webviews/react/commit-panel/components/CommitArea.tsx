@@ -5,6 +5,7 @@ import React from "react";
 import { Flex, Box, Textarea, Button } from "@chakra-ui/react";
 import { VscCheckbox } from "./VscCheckbox";
 import { SYSTEM_FONT_STACK } from "../../../../utils/constants";
+import { localize } from "../../shared/i18n";
 
 interface Props {
     commitMessage: string;
@@ -44,14 +45,14 @@ export function CommitArea({
                     inputTestId="amend-checkbox"
                 />
                 <Box as="span" color="var(--vscode-foreground)" opacity={0.9}>
-                    Amend
+                    {localize("label.amend")}
                 </Box>
             </Flex>
             <Box px="7px" flex={1} overflow="hidden">
                 <Textarea
                     value={commitMessage}
                     onChange={(e) => onMessageChange(e.target.value)}
-                    placeholder="Commit Message"
+                    placeholder={localize("label.commitMessage")}
                     resize="none"
                     w="100%"
                     h="100%"
@@ -75,7 +76,7 @@ export function CommitArea({
                     fontSize="12px"
                     fontFamily={SYSTEM_FONT_STACK}
                 >
-                    Commit
+                    {localize("label.commit")}
                 </Button>
                 <Button
                     variant="secondary"
@@ -84,7 +85,7 @@ export function CommitArea({
                     fontSize="12px"
                     fontFamily={SYSTEM_FONT_STACK}
                 >
-                    Commit and Push...
+                    {localize("label.commitAndPush")}
                 </Button>
             </Flex>
         </Flex>

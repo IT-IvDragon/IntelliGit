@@ -1,6 +1,7 @@
 import React from "react";
 import { LuSearch, LuX } from "react-icons/lu";
 import { SEARCH_CLEAR_BUTTON_STYLE, SEARCH_CONTAINER_STYLE, SEARCH_INPUT_STYLE } from "../styles";
+import { localize } from "../../shared/i18n";
 
 export interface Props {
     value: string;
@@ -15,8 +16,8 @@ export function BranchSearchBar({ value, onChange, onClear }: Props): React.Reac
             <input
                 className="branch-search-input"
                 type="text"
-                aria-label="Search branches"
-                placeholder="Search branches"
+                aria-label={localize("label.searchBranches")}
+                placeholder={localize("label.searchBranches")}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 style={SEARCH_INPUT_STYLE}
@@ -25,7 +26,7 @@ export function BranchSearchBar({ value, onChange, onClear }: Props): React.Reac
                 <button
                     type="button"
                     aria-label="Clear branch search"
-                    title="Clear"
+                    title={localize("label.clear")}
                     onClick={onClear}
                     style={SEARCH_CLEAR_BUTTON_STYLE}
                 >

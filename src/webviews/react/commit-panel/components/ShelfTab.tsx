@@ -11,6 +11,7 @@ import type { StashEntry, ThemeFolderIconMap, ThemeTreeIcon, WorkingFile } from 
 import { useFileTree, collectAllDirPaths } from "../hooks/useFileTree";
 import type { TreeEntry } from "../types";
 import { getLeafName, resolveFolderIcon } from "../../shared/utils";
+import { localize } from "../../shared/i18n";
 
 interface Props {
     stashes: StashEntry[];
@@ -150,7 +151,7 @@ export function ShelfTab({
                         p="12px"
                         textAlign="center"
                     >
-                        No shelved changes
+                        {localize("label.noShelvedChanges")}
                     </Box>
                 ) : (
                     stashes.map((stash) => {
@@ -241,7 +242,7 @@ export function ShelfTab({
                                         fontSize="12px"
                                         color="var(--vscode-descriptionForeground)"
                                     >
-                                        Loading...
+                                        {localize("label.loading")}
                                     </Box>
                                 )}
                                 {hasFiles && (
@@ -271,7 +272,7 @@ export function ShelfTab({
                                                     fontSize="12px"
                                                     color="var(--vscode-descriptionForeground)"
                                                 >
-                                                    No files in this shelved change.
+                                                    {localize("label.noFilesInStash")}
                                                 </Box>
                                             )}
                                         </Box>
@@ -312,7 +313,7 @@ export function ShelfTab({
                     bg="rgba(255,255,255,0.07)"
                     borderColor="rgba(184, 194, 214, 0.5)"
                 >
-                    Apply
+                    {localize("label.apply")}
                 </Button>
                 <Button
                     variant="secondary"
@@ -326,7 +327,7 @@ export function ShelfTab({
                     bg="rgba(255,255,255,0.07)"
                     borderColor="rgba(184, 194, 214, 0.5)"
                 >
-                    Pop
+                    {localize("label.pop")}
                 </Button>
                 <Button
                     variant="secondary"
@@ -340,7 +341,7 @@ export function ShelfTab({
                     bg="rgba(255,255,255,0.07)"
                     borderColor="rgba(184, 194, 214, 0.5)"
                 >
-                    Delete
+                    {localize("label.delete")}
                 </Button>
             </Flex>
         </Flex>
@@ -350,9 +351,9 @@ export function ShelfTab({
 function parseShelfMessage(message: string): { title: string; branch: string | null } {
     const trimmed = message.trim();
     const match = trimmed.match(/^On\s+([^:]+):\s*(.*)$/i);
-    if (!match) return { title: trimmed || "Shelved changes", branch: null };
+    if (!match) return { title: trimmed || localize("label.shelvedChanges"), branch: null };
     return {
-        title: match[2]?.trim() || "Shelved changes",
+        title: match[2]?.trim() || localize("label.shelvedChanges"),
         branch: match[1]?.trim() || null,
     };
 }

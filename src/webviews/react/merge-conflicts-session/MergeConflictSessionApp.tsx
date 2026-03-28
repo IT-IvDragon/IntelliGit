@@ -4,6 +4,10 @@ import { getVsCodeApi as getSharedVsCodeApi } from "../shared/vscodeApi";
 import type { MergeConflictFile } from "../../../types";
 import type { InboundMessage, OutboundMessage } from "./types";
 import "./merge-conflicts-session.css";
+import { localize, setLocale } from "../shared/i18n";
+
+// Initialize locale
+setLocale(window.navigator.language || "en");
 
 function getVsCodeApi() {
     return getSharedVsCodeApi<OutboundMessage, unknown>();
@@ -196,10 +200,10 @@ function App() {
                         checked={groupByDirectory}
                         onChange={(event) => setGroupByDirectory(event.target.checked)}
                     />
-                    Group files by directory
+                    {localize("label.groupFilesByDirectoryShort")}
                 </label>
                 <button className="close-btn" onClick={close}>
-                    Close
+                    {localize("label.close")}
                 </button>
             </div>
         </div>

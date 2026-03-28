@@ -25,6 +25,10 @@ import { getVsCodeApi } from "./shared/vscodeApi";
 import theme from "./commit-panel/theme";
 import { CommitInfoPane } from "./commit-info/CommitInfoPane";
 import { ThemeIconFontFaces } from "./shared/components";
+import { setLocale } from "./shared/i18n";
+
+// Initialize locale
+setLocale(window.navigator.language || "en");
 
 const vscode = getVsCodeApi<CommitGraphOutbound, unknown>();
 const MIN_BRANCH_WIDTH = 80;

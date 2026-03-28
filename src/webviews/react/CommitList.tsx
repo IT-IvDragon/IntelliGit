@@ -11,6 +11,7 @@ import { getCommitMenuItems } from "./commit-list/commitMenu";
 import { CommitRow } from "./commit-list/CommitRow";
 import { useCommitGraphCanvas } from "./commit-list/useCommitGraphCanvas";
 import { isCommitAction, type CommitAction } from "./commitGraphTypes";
+import { localize } from "./shared/i18n";
 import {
     AUTHOR_COL_WIDTH,
     BRANCH_SCOPE_STYLE,
@@ -180,7 +181,7 @@ export function CommitList({
                 <div style={FILTER_INPUT_WRAP_STYLE}>
                     <input
                         type="text"
-                        placeholder="Text or hash"
+                        placeholder={localize("label.textOrHash")}
                         value={filterText}
                         onChange={(event) => onFilterText(event.target.value)}
                         style={FILTER_INPUT_STYLE}
@@ -189,7 +190,7 @@ export function CommitList({
                         <button
                             type="button"
                             aria-label="Clear commit search"
-                            title="Clear"
+                            title={localize("label.clear")}
                             onClick={() => onFilterText("")}
                             style={FILTER_CLEAR_BUTTON_STYLE}
                         >
@@ -199,17 +200,17 @@ export function CommitList({
                 </div>
                 <span
                     style={BRANCH_SCOPE_STYLE}
-                    title={selectedBranch ? `Branch: ${selectedBranch}` : "Branch: All branches"}
+                    title={selectedBranch ? `${localize("label.branch")}: ${selectedBranch}` : `${localize("label.branch")}: ${localize("label.allBranches")}`}
                 >
-                    Branch: {selectedBranch ?? "All branches"}
+                    {localize("label.branch")}: {selectedBranch ?? localize("label.allBranches")}
                 </span>
             </div>
 
             <div style={headerRowStyle(graphWidth)}>
-                <span style={{ flex: 1 }}>Commit</span>
-                <span style={{ width: AUTHOR_COL_WIDTH, textAlign: "right" }}>Author</span>
+                <span style={{ flex: 1 }}>{localize("label.commitTab")}</span>
+                <span style={{ width: AUTHOR_COL_WIDTH, textAlign: "right" }}>{localize("label.author")}</span>
                 <span style={{ width: DATE_COL_WIDTH, textAlign: "right", marginLeft: 4 }}>
-                    Date
+                    {localize("label.date")}
                 </span>
             </div>
 

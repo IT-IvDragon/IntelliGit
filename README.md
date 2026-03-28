@@ -2,6 +2,39 @@
 
 IntelliGit brings a JetBrains-style Git workflow into VS Code, so you can stage, commit, inspect history, and manage branches without bouncing between multiple tools.
 
+> **中文说明**: 本项目已添加中文语言支持！如果您想查看中文版本，请查看 [README_zh-CN.md](README_zh-CN.md)。
+
+## About This Project
+
+This project is a fork from the open-source project [IntelliGit](https://github.com/MaheshKok/IntelliGit) on GitHub, developed based on the JetBrains IDE-style Git interface design philosophy.
+
+## Major Changes in This Version
+
+- ✅ Added Simplified Chinese (zh-CN) language support
+- ✅ All UI interface elements have been internationalized
+- ✅ Added localization files `package.nls.json` and `package.nls.zh-cn.json`
+- ✅ Added WebView i18n utility module
+
+> **Development Tools**: This modification was developed using **Trae SOLO** mode with the **MiniMax-M2.5** model.
+
+## Documentation
+
+| Document | Language | Description |
+|----------|----------|-------------|
+| [README.md](README.md) | English | Main project documentation |
+| [README_zh-CN.md](README_zh-CN.md) | 简体中文 | 中文项目文档 |
+| [CHANGELOG.md](CHANGELOG.md) | English | Version history and changes |
+| [SECURITY_REPORT.md](SECURITY_REPORT.md) | English | Security measures and best practices |
+| [SECURITY_REPORT_zh-CN.md](SECURITY_REPORT_zh-CN.md) | 简体中文 | 安全措施与最佳实践 |
+
+### Localization Files
+
+| File | Language | Description |
+|------|----------|-------------|
+| `package.nls.json` | English | VS Code extension commands and views (English) |
+| `package.nls.zh-cn.json` | 简体中文 | VS Code 扩展命令和视图（中文） |
+| `src/webviews/react/shared/i18n.ts` | Bilingual | WebView UI string internationalization module |
+
 ![alt text](image.png)
 
 ## How Users Benefit 

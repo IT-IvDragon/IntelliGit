@@ -34,6 +34,10 @@ import {
     type OverviewMarker,
 } from "./segments";
 import "./merge-editor.css";
+import { setLocale } from "../shared/i18n";
+
+// Initialize locale
+setLocale(window.navigator.language || "en");
 
 // --- VS Code API ---
 

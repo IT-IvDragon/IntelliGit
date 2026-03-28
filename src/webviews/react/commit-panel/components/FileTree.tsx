@@ -9,6 +9,7 @@ import { FileRow } from "./FileRow";
 import { useFileTree, collectAllDirPaths } from "../hooks/useFileTree";
 import type { ThemeFolderIconMap, ThemeTreeIcon, WorkingFile } from "../../../../types";
 import type { TreeEntry } from "../types";
+import { localize } from "../../shared/i18n";
 
 interface Props {
     files: WorkingFile[];
@@ -130,7 +131,7 @@ export function FileTree({
             {tracked.length > 0 && (
                 <>
                     <SectionHeader
-                        label="Changes"
+                        label={localize("label.changes")}
                         count={tracked.length}
                         isOpen={changesOpen}
                         isAllChecked={isAllChecked(tracked)}
@@ -161,7 +162,7 @@ export function FileTree({
             {unversioned.length > 0 && (
                 <>
                     <SectionHeader
-                        label="Unversioned Files"
+                        label={localize("label.unversionedFiles")}
                         count={unversioned.length}
                         isOpen={unversionedOpen}
                         isAllChecked={isAllChecked(unversioned)}
