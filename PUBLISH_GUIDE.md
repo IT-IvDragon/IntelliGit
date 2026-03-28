@@ -7,6 +7,7 @@
 本扩展是 **IntelliGit** 的中文本地化版本，基于 MIT License 开源项目修改。
 
 - **原始项目**: [IntelliGit](https://github.com/MaheshKok/IntelliGit)
+- **本项目**: [IntelliGit 中文版](https://github.com/IT-IvDragon/IntelliGit)
 - **许可证**: MIT License
 - **开发工具**: Trae SOLO (MiniMax-M2.5 模型)
 
@@ -171,3 +172,4 @@ A: 可以，因为使用了不同的扩展名称 (`intelligit` vs `intelligit-ch
 - [VS Code Marketplace](https://marketplace.visualstudio.com/)
 - [vsce 工具文档](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
 - [原项目 IntelliGit](https://github.com/MaheshKok/IntelliGit)
+- [IntelliGit 中文版](https://github.com/IT-IvDragon/IntelliGit)
