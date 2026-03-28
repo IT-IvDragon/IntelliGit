@@ -5,6 +5,49 @@ All notable changes to IntelliGit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-03-28
+
+### 变更
+
+- 更新仓库地址指向用户分支 (IT-IvDragon/IntelliGit)
+
+## [1.0.0] - 2026-03-28
+
+### 新增
+
+- 全面支持简体中文（zh-CN）语言
+- 新增 VS Code 扩展命令和视图的 i18n 国际化基础设施
+  - `package.nls.json`（英文基础字符串）
+  - `package.nls.zh-cn.json`（中文翻译）
+  - `src/utils/i18n.ts`（扩展主机 i18n 工具）
+- WebView i18n 模块（`src/webviews/react/shared/i18n.ts`）
+  - 支持英文和中文（zh-CN、zh-TW、zh-HK）
+  - 通过 navigator.language 自动检测 VS Code 语言
+- 所有 WebView 入口和组件的本地化支持
+
+### 文档
+
+- 新增 README_zh-CN.md（完整中文文档）
+- 新增 SECURITY_REPORT.md（英文安全报告）
+- 新增 SECURITY_REPORT_zh-CN.md（中文安全报告）
+- 新增 PUBLISH_GUIDE.md（市场发布指南）
+- 更新 README.md：
+  - 添加项目来源说明
+  - 添加主要改动列表
+  - 添加开发工具说明
+  - 添加文档索引表
+
+### 安全
+
+- 完成全面安全性审计
+- 未发现严重安全漏洞
+
+### 变更
+
+- 扩展名称更改为 'intelligit-chinese'
+- 更新版本号格式以符合 VS Code Marketplace 要求
+- 仓库地址更新为用户分支
+
 ## [0.6.2] - 2026-03-16
 
 ### Security
